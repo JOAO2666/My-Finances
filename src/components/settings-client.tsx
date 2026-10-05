@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ExternalLink, KeyRound, Trash2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, KeyRound, Smartphone, Trash2 } from "lucide-react";
 import { api } from "@/lib/client";
+import { ThemeToggle } from "./theme-toggle";
 
 type Cat = { id: string; name: string; type: "expense" | "income"; color: string };
 
@@ -230,10 +231,76 @@ function SecuritySection() {
   );
 }
 
+function ApkSection() {
+  const [copied, setCopied] = useState(false);
+
+  function copyCommand() {
+    navigator.clipboard.writeText("npm run build:apk");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
+
+  return (
+    <section className="card space-y-4">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
+          <Smartphone size={20} />
+        </span>
+        <div>
+          <h2 className="font-semibold text-slate-900">Aplicativo para Celular (APK / PWA)</h2>
+          <p className="text-sm text-slate-500">
+            Instale o My Finances no seu celular Android ou iOS para ter atalhos rápidos, tela cheia, notificações e suporte a compartilhamento de comprovantes.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Opção 1 · Instalação Direta (Recomendado)</h3>
+          <p className="text-xs text-slate-600">
+            Abra este site no <strong>Google Chrome</strong> do seu celular Android e toque nos <strong>3 pontinhos ⋮</strong> &rarr; <strong>&ldquo;Instalar aplicativo&rdquo;</strong>.
+          </p>
+          <p className="text-[11px] text-emerald-700 font-medium">✓ Sem precisar baixar arquivos externos. Atualiza automaticamente!</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Opção 2 · Gerar arquivo .APK nativo</h3>
+          <p className="text-xs text-slate-600">
+            Você pode gerar um arquivo <code>.apk</code> assinado pronto para instalar ou publicar com o Google Bubblewrap:
+          </p>
+          <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-xs font-mono text-emerald-400">
+            <span>npm run build:apk</span>
+            <button onClick={copyCommand} className="text-slate-400 hover:text-white">
+              {copied ? "Copiado!" : "Copiar"}
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">Ou execute o script <code>scripts/build-apk.bat</code> na raiz do projeto.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AppearanceSection() {
+  return (
+    <section className="card space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-slate-900">Aparência e Tema</h2>
+          <p className="text-sm text-slate-500">Alterne entre o tema visual claro e escuro conforme sua preferência.</p>
+        </div>
+        <ThemeToggle className="border border-slate-200 dark:border-slate-700 px-3 py-1.5" />
+      </div>
+    </section>
+  );
+}
+
 export function SettingsClient({ hasKey, model, categories }: { hasKey: boolean; model: string; categories: Cat[] }) {
   return (
     <div className="space-y-5">
+      <AppearanceSection />
       <GeminiSection hasKey={hasKey} model={model} />
+      <ApkSection />
       <CategorySection categories={categories} />
       <SecuritySection />
     </div>

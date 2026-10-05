@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, Send } from "lucide-react";
+import { Compass, Cpu, Loader2, Send, ShieldCheck, TrendingUp } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/client";
 import { brl } from "@/lib/format";
@@ -15,7 +15,7 @@ type AgentType = "sentinel" | "behavior" | "strategist" | "simulator";
 const AGENTS: {
   id: AgentType;
   name: string;
-  icon: string;
+  icon: typeof ShieldCheck;
   subtitle: string;
   initialMsg: string;
   suggestions: string[];
@@ -23,7 +23,7 @@ const AGENTS: {
   {
     id: "sentinel",
     name: "Sentinela",
-    icon: "🛡️",
+    icon: ShieldCheck,
     subtitle: "Vigia o dia a dia, cobranças atípicas e vencimentos",
     initialMsg: "Olá! Sou o Agente Sentinela. Estou vigiando suas finanças no dia a dia: detecto cobranças fora do comum, assinaturas esquecidas e contas próximas do vencimento.",
     suggestions: [
@@ -36,7 +36,7 @@ const AGENTS: {
   {
     id: "behavior",
     name: "Comportamento",
-    icon: "📈",
+    icon: TrendingUp,
     subtitle: "Tendências de consumo e onde o dinheiro está vazando",
     initialMsg: "Oi! Sou o Analista de Comportamento. Ajudo a entender seus hábitos quinzenais, gatilhos de consumo e onde o dinheiro pode estar escorrendo.",
     suggestions: [
@@ -48,7 +48,7 @@ const AGENTS: {
   {
     id: "strategist",
     name: "Estrategista",
-    icon: "🎯",
+    icon: Compass,
     subtitle: "Projeção mensal, orçamentos e metas de economia",
     initialMsg: "Saudações! Sou o Estrategista Financeiro. Cuido da sua projeção de fechamento do mês, equilíbrio orçamentário e planos para fazer o dinheiro render.",
     suggestions: [
@@ -59,8 +59,8 @@ const AGENTS: {
   },
   {
     id: "simulator",
-    name: "Simulador (Computer)",
-    icon: "⚡",
+    name: "Simulador",
+    icon: Cpu,
     subtitle: "Cálculos de cenários, cortes e quitação de dívidas",
     initialMsg: "Olá! Sou o Simulador Moneta Computer. Realizo simulações completas: antecipar dívidas vs guardar, cortes de despesas, metas de viagem e compras parceladas.",
     suggestions: [
@@ -167,7 +167,7 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
                     : "text-slate-600 hover:bg-slate-200/60",
                 )}
               >
-                <span>{a.icon}</span>
+                <a.icon size={14} className={active ? "text-brand-600" : "text-slate-500"} />
                 <span>{a.name}</span>
               </button>
             );

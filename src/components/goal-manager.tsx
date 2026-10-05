@@ -157,8 +157,8 @@ export function GoalManager({ goals }: { goals: Goal[] }) {
                 </div>
 
                 <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                  <span className="text-xs text-slate-500">
-                    {completed ? "🎉 Meta alcançada!" : `Faltam ${brl(g.targetCents - g.currentCents)}`}
+                  <span className="text-xs text-slate-500 font-medium">
+                    {completed ? "Meta alcançada!" : `Faltam ${brl(g.targetCents - g.currentCents)}`}
                   </span>
                   <div className="flex gap-1.5">
                     <button

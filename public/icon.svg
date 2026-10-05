@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="50%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Background Rounded App Icon -->
+  <rect width="512" height="512" rx="128" fill="url(#bg)" />
+  <rect width="512" height="256" rx="128" fill="url(#shine)" />
+
+  <!-- Inner Emblem Circle -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#34d399" stroke-width="4" stroke-dasharray="16 12" opacity="0.4" />
+
+  <!-- Main 'M' Emblem -->
+  <g filter="url(#shadow)">
+    <path d="M140 370 V 160 L 256 280 L 372 160 V 370" fill="none" stroke="#ffffff" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- Golden Accent Sparkle -->
+  <circle cx="372" cy="148" r="22" fill="#fbbf24" filter="url(#shadow)" />
+  <circle cx="372" cy="148" r="14" fill="#fef08a" />
+</svg>

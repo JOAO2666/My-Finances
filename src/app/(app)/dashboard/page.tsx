@@ -50,7 +50,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Olá, {user.name.split(" ")[0]} 👋</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Olá, {user.name.split(" ")[0]}</h1>
           <p className="text-sm text-slate-500">Veja como estão suas finanças em tempo real.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -106,7 +106,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <Link href="/lancamentos?status=pending" className="text-xs font-medium text-brand-700 hover:underline">Ver todas</Link>
           </div>
           {bills.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-500">Nenhuma conta pendente. 🎉</p>
+            <p className="py-6 text-center text-sm text-slate-500">Nenhuma conta pendente.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
               {bills.map((b) => {
