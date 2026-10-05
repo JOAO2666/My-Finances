@@ -24,6 +24,19 @@ body {
   background-color: #ffffff;
   padding: 1.25rem;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
+}
+
+.card-interactive {
+  cursor: pointer;
+  user-select: none;
+}
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
+}
+.card-interactive:active {
+  transform: scale(0.985) translateY(0);
 }
 
 .btn {
@@ -35,8 +48,15 @@ body {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.15s ease-in-out;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease, filter 0.12s ease, box-shadow 0.15s ease;
   cursor: pointer;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.95);
+  filter: brightness(0.95);
 }
 .btn:disabled {
   opacity: 0.5;
@@ -52,13 +72,20 @@ body {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.15s ease-in-out;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease, filter 0.12s ease, box-shadow 0.15s ease;
   cursor: pointer;
   background-color: #059669;
   color: #ffffff;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
 }
 .btn-primary:hover:not(:disabled) {
   background-color: #047857;
+}
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.95);
+  filter: brightness(0.92);
 }
 .btn-primary:disabled {
   opacity: 0.5;
@@ -74,14 +101,21 @@ body {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.15s ease-in-out;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease, filter 0.12s ease, box-shadow 0.15s ease;
   cursor: pointer;
   border: 1px solid #cbd5e1;
   background-color: #ffffff;
   color: #334155;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
 }
 .btn-secondary:hover:not(:disabled) {
   background-color: #f8fafc;
+}
+.btn-secondary:active:not(:disabled) {
+  transform: scale(0.95);
+  background-color: #f1f5f9;
 }
 .btn-secondary:disabled {
   opacity: 0.5;
@@ -97,13 +131,20 @@ body {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.15s ease-in-out;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease, filter 0.12s ease;
   cursor: pointer;
   background-color: #dc2626;
   color: #ffffff;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
 }
 .btn-danger:hover:not(:disabled) {
   background-color: #b91c1c;
+}
+.btn-danger:active:not(:disabled) {
+  transform: scale(0.95);
+  filter: brightness(0.92);
 }
 .btn-danger:disabled {
   opacity: 0.5;
@@ -119,16 +160,54 @@ body {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.15s ease-in-out;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease;
   cursor: pointer;
   color: #475569;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
 }
 .btn-ghost:hover:not(:disabled) {
   background-color: #f1f5f9;
 }
+.btn-ghost:active:not(:disabled) {
+  transform: scale(0.95);
+  background-color: #e2e8f0;
+}
 .btn-ghost:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Efeito Ripple e Microinterações ao Clicar */
+.tap-effect {
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tap-effect:active {
+  transform: scale(0.95);
+}
+
+@keyframes moneta-click-burst {
+  0% {
+    transform: scale(0.2);
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.click-ripple-circle {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: moneta-click-burst 0.45s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+  z-index: 99999;
 }
 
 .btn-sm {

@@ -63,7 +63,29 @@ export const txInput = z.object({
   date: zDate,
   status: z.enum(["paid", "pending"]),
   categoryId: z.string().nullable().optional().transform((v) => v ?? null),
+  accountId: z.string().nullable().optional().transform((v) => v ?? null),
+  isRecurring: z.boolean().optional().default(false),
+  installments: z.number().int().min(1).max(72).optional(),
   notes: z.string().max(1000).nullable().optional(),
+});
+
+export const accountInput = z.object({
+  name: z.string().trim().min(1, "Informe o nome da conta.").max(80),
+  type: z.enum(["checking", "savings", "credit_card", "cash", "investment"]),
+  institution: z.string().max(80).nullable().optional(),
+  balanceCents: z.number().int().optional().default(0),
+  creditLimitCents: z.number().int().min(0).nullable().optional(),
+  closingDay: z.number().int().min(1).max(31).nullable().optional(),
+  dueDay: z.number().int().min(1).max(31).nullable().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().default("#10b981"),
+});
+
+export const goalInput = z.object({
+  name: z.string().trim().min(1, "Informe o nome da meta.").max(100),
+  targetCents: zCents.min(100, "Valor alvo mínimo de R$ 1,00."),
+  currentCents: z.number().int().min(0).optional().default(0),
+  deadline: zDate.nullable().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().default("#10b981"),
 });
 
 export const debtInput = z.object({

@@ -2,27 +2,52 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Bot, CheckCircle2, Clock, Pencil, Plus, Trash2 } from "lucide-react";
+import { Camera, Bot, CheckCircle2, Clock, Pencil, Plus, Repeat, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/client";
 import { brl, fmtDate, today } from "@/lib/format";
-import { TransactionDialog, type CatOption, type TxEdit } from "./transaction-dialog";
+import { TransactionDialog, type AccOption, type CatOption, type TxEdit } from "./transaction-dialog";
 
-export type TxItem = TxEdit & { categoryName: string | null; categoryColor: string | null; source: string };
+export type TxItem = TxEdit & {
+  categoryName: string | null;
+  categoryColor: string | null;
+  accountName?: string | null;
+  installmentCurrent?: number | null;
+  installmentTotal?: number | null;
+  source: string;
+};
 
-export function NewTransactionButton({ categories, label = "Novo lançamento" }: { categories: CatOption[]; label?: string }) {
+export function NewTransactionButton({
+  categories,
+  accounts = [],
+  label = "Novo lançamento",
+}: {
+  categories: CatOption[];
+  accounts?: AccOption[];
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button className="btn-primary" onClick={() => setOpen(true)}>
         <Plus size={16} /> {label}
       </button>
-      {open && <TransactionDialog categories={categories} onClose={() => setOpen(false)} />}
+      {open && <TransactionDialog categories={categories} accounts={accounts} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-export function TransactionList({ items, categories, empty }: { items: TxItem[]; categories: CatOption[]; empty?: string }) {
+export function TransactionList({
+  items,
+  categories,
+  accounts = [],
+  empty,
+}: {
+  items: TxItem[];
+  categories: CatOption[];
+  accounts?: AccOption[];
+  empty?: string;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<TxItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -67,6 +92,16 @@ export function TransactionList({ items, categories, empty }: { items: TxItem[];
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-900">
                   {t.description}
+                  {t.installmentTotal && t.installmentTotal > 1 && (
+                    <span className="ml-1.5 inline-block rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">
+                      {t.installmentCurrent ?? 1}/{t.installmentTotal}
+                    </span>
+                  )}
+                  {t.isRecurring && (
+                    <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700" title="Assinatura recorrente">
+                      <Repeat size={10} /> Fixa
+                    </span>
+                  )}
                   {t.source === "ocr" && <Camera size={12} className="ml-1.5 inline text-slate-400" aria-label="Lido por IA" />}
                   {t.source === "assistant" && <Bot size={12} className="ml-1.5 inline text-slate-400" aria-label="Via assistente" />}
                 </p>
@@ -76,6 +111,11 @@ export function TransactionList({ items, categories, empty }: { items: TxItem[];
                     <span className="size-2 rounded-full" style={{ background: t.categoryColor ?? "#94a3b8" }} />
                     {t.categoryName ?? "Sem categoria"}
                   </span>
+                  {t.accountName && (
+                    <span className="badge bg-slate-100 text-slate-700 font-normal">
+                      {t.accountName}
+                    </span>
+                  )}
                   {overdue && <span className="badge bg-red-100 text-red-700">Atrasado</span>}
                   {t.status === "pending" && !overdue && <span className="badge bg-amber-100 text-amber-800">{t.type === "expense" ? "A pagar" : "A receber"}</span>}
                 </p>
@@ -95,7 +135,7 @@ export function TransactionList({ items, categories, empty }: { items: TxItem[];
           );
         })}
       </ul>
-      {editing && <TransactionDialog categories={categories} initial={editing} onClose={() => setEditing(null)} />}
+      {editing && <TransactionDialog categories={categories} accounts={accounts} initial={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }

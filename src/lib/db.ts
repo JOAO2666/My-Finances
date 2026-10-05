@@ -62,6 +62,29 @@ const SCHEMA = [
     source TEXT NOT NULL DEFAULT 'manual',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  `CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('checking','savings','credit_card','cash','investment')),
+    institution TEXT,
+    balance_cents INTEGER NOT NULL DEFAULT 0,
+    credit_limit_cents INTEGER,
+    closing_day INTEGER,
+    due_day INTEGER,
+    color TEXT NOT NULL DEFAULT '#10b981',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS goals (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    target_cents INTEGER NOT NULL CHECK (target_cents > 0),
+    current_cents INTEGER NOT NULL DEFAULT 0 CHECK (current_cents >= 0),
+    deadline TEXT,
+    color TEXT NOT NULL DEFAULT '#10b981',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 type G = typeof globalThis & { __moneta?: { client: Client; ready: Promise<void> } };
@@ -92,6 +115,20 @@ function create(): { client: Client; ready: Promise<void> } {
         await client.execute(sql);
       } catch (err) {
         console.warn("[db schema warn]", err);
+      }
+    }
+    const migrations = [
+      "ALTER TABLE transactions ADD COLUMN account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL",
+      "ALTER TABLE transactions ADD COLUMN is_recurring INTEGER DEFAULT 0",
+      "ALTER TABLE transactions ADD COLUMN installment_current INTEGER",
+      "ALTER TABLE transactions ADD COLUMN installment_total INTEGER",
+      "ALTER TABLE transactions ADD COLUMN parent_tx_id TEXT",
+    ];
+    for (const m of migrations) {
+      try {
+        await client.execute(m);
+      } catch {
+        /* coluna já existe */
       }
     }
   })();

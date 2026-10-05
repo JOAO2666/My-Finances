@@ -10,20 +10,75 @@ import { brl } from "@/lib/format";
 type Created = { id: string; description: string; amountCents: number; type: "expense" | "income"; categoryName: string | null };
 type Msg = { role: "user" | "assistant"; content: string; created?: Created[]; error?: boolean };
 
-const SUGGESTIONS = [
-  "Quanto gastei este mês?",
-  "Onde estou gastando mais?",
-  "Gastei 45 reais no mercado hoje",
-  "Quais contas vencem em breve?",
-  "Como posso economizar?",
+type AgentType = "sentinel" | "behavior" | "strategist" | "simulator";
+
+const AGENTS: {
+  id: AgentType;
+  name: string;
+  icon: string;
+  subtitle: string;
+  initialMsg: string;
+  suggestions: string[];
+}[] = [
+  {
+    id: "sentinel",
+    name: "Sentinela",
+    icon: "🛡️",
+    subtitle: "Vigia o dia a dia, cobranças atípicas e vencimentos",
+    initialMsg: "Olá! Sou o Agente Sentinela. Estou vigiando suas finanças no dia a dia: detecto cobranças fora do comum, assinaturas esquecidas e contas próximas do vencimento.",
+    suggestions: [
+      "Houve algum gasto fora do padrão?",
+      "Quais contas vencem em breve?",
+      "Tenho assinaturas ativas este mês?",
+      "Paguei 45 reais no almoço hoje",
+    ],
+  },
+  {
+    id: "behavior",
+    name: "Comportamento",
+    icon: "📈",
+    subtitle: "Tendências de consumo e onde o dinheiro está vazando",
+    initialMsg: "Oi! Sou o Analista de Comportamento. Ajudo a entender seus hábitos quinzenais, gatilhos de consumo e onde o dinheiro pode estar escorrendo.",
+    suggestions: [
+      "Onde estou gastando mais sem perceber?",
+      "Como está o ritmo de despesas em relação ao mês passado?",
+      "Me dê 1 dica prática para conter impulsos",
+    ],
+  },
+  {
+    id: "strategist",
+    name: "Estrategista",
+    icon: "🎯",
+    subtitle: "Projeção mensal, orçamentos e metas de economia",
+    initialMsg: "Saudações! Sou o Estrategista Financeiro. Cuido da sua projeção de fechamento do mês, equilíbrio orçamentário e planos para fazer o dinheiro render.",
+    suggestions: [
+      "Como está a projeção para o final deste mês?",
+      "Quais orçamentos estão em risco de estourar?",
+      "Como distribuir minha renda de forma equilibrada?",
+    ],
+  },
+  {
+    id: "simulator",
+    name: "Simulador (Computer)",
+    icon: "⚡",
+    subtitle: "Cálculos de cenários, cortes e quitação de dívidas",
+    initialMsg: "Olá! Sou o Simulador Moneta Computer. Realizo simulações completas: antecipar dívidas vs guardar, cortes de despesas, metas de viagem e compras parceladas.",
+    suggestions: [
+      "Simular corte de R$ 250 em gastos extras",
+      "Vale a pena quitar minha dívida à vista?",
+      "Quanto guardar por mês para ter R$ 5.000 em 1 ano?",
+    ],
+  },
 ];
 
 export function AssistantClient({ hasKey }: { hasKey: boolean }) {
+  const [activeAgent, setActiveAgent] = useState<AgentType>("sentinel");
+  const agentConfig = AGENTS.find((a) => a.id === activeAgent) ?? AGENTS[0];
+
   const [msgs, setMsgs] = useState<Msg[]>([
     {
       role: "assistant",
-      content:
-        "Oi! Sou seu assistente financeiro. Pergunte sobre seus gastos ou me conte um gasto/ganho (ex.: “paguei 120 de luz ontem”) que eu registro para você.",
+      content: agentConfig.initialMsg,
     },
   ]);
   const [input, setInput] = useState("");
@@ -38,6 +93,20 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
     }
   }, [msgs, busy]);
 
+  function switchAgent(newAgent: AgentType) {
+    if (newAgent === activeAgent) return;
+    setActiveAgent(newAgent);
+    const target = AGENTS.find((a) => a.id === newAgent);
+    if (!target) return;
+    setMsgs((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `*${target.icon} Conectado ao Agente ${target.name}* (${target.subtitle})\n${target.initialMsg}`,
+      },
+    ]);
+  }
+
   async function send(text: string) {
     text = text.trim();
     if (!text || busy) return;
@@ -50,7 +119,12 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
         .filter((m) => !m.error)
         .slice(-12)
         .map(({ role, content }) => ({ role, content }));
-      const out = await api<{ reply?: string; created?: Created[] }>("POST", "/api/assistant", { messages: payload });
+
+      const out = await api<{ reply?: string; created?: Created[] }>("POST", "/api/assistant", {
+        messages: payload,
+        agent: activeAgent,
+      });
+
       const createdList = Array.isArray(out?.created) ? out.created : [];
       setMsgs((prev) => [
         ...prev,
@@ -75,7 +149,32 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
   }
 
   return (
-    <div className="card flex h-[calc(100vh-14rem)] min-h-[26rem] flex-col !p-0 lg:h-[calc(100vh-11rem)]">
+    <div className="card flex h-[calc(100vh-14rem)] min-h-[28rem] flex-col !p-0 lg:h-[calc(100vh-11rem)]">
+      {/* Seletor de Agentes Especialistas no Topo (Pierre Style) */}
+      <div className="border-b border-slate-200 bg-slate-50/70 p-2 sm:px-4">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          {AGENTS.map((a) => {
+            const active = a.id === activeAgent;
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => switchAgent(a.id)}
+                className={clsx(
+                  "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition active:scale-95",
+                  active
+                    ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+                    : "text-slate-600 hover:bg-slate-200/60",
+                )}
+              >
+                <span>{a.icon}</span>
+                <span>{a.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {msgs.map((m, i) => (
           <div key={i} className={clsx("flex", m.role === "user" ? "justify-end" : "justify-start")}>
@@ -101,7 +200,7 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
         ))}
         {busy && (
           <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Loader2 size={15} className="animate-spin" /> Pensando...
+            <Loader2 size={15} className="animate-spin text-brand-600" /> {agentConfig.name} está pensando...
           </div>
         )}
         <div ref={end} />
@@ -113,18 +212,18 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
           <Link href="/configuracoes" prefetch={false} className="font-semibold underline">
             Configurações
           </Link>{" "}
-          para conversar com o assistente.
+          para conversar com os agentes de IA.
         </div>
       ) : (
         <div className="border-t border-slate-200 p-3">
           <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-            {SUGGESTIONS.map((s) => (
+            {agentConfig.suggestions.map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => send(s)}
                 disabled={busy}
-                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 active:scale-95"
               >
                 {s}
               </button>
@@ -140,7 +239,7 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
           >
             <input
               className="input"
-              placeholder="Pergunte ou registre um gasto..."
+              placeholder={`Pergunte ao ${agentConfig.name} ou registre um gasto...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -151,7 +250,7 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
               }}
               maxLength={1000}
             />
-            <button type="submit" className="btn-primary" disabled={busy || !input.trim()} aria-label="Enviar">
+            <button type="submit" className="btn-primary active:scale-95" disabled={busy || !input.trim()} aria-label="Enviar">
               <Send size={16} />
             </button>
           </form>

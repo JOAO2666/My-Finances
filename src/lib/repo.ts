@@ -7,6 +7,29 @@ export type TxStatus = "paid" | "pending";
 
 export type Category = { id: string; name: string; type: TxType; color: string };
 
+export type AccountType = "checking" | "savings" | "credit_card" | "cash" | "investment";
+
+export type Account = {
+  id: string;
+  name: string;
+  type: AccountType;
+  institution: string | null;
+  balanceCents: number;
+  creditLimitCents: number | null;
+  closingDay: number | null;
+  dueDay: number | null;
+  color: string;
+};
+
+export type Goal = {
+  id: string;
+  name: string;
+  targetCents: number;
+  currentCents: number;
+  deadline: string | null;
+  color: string;
+};
+
 export type Transaction = {
   id: string;
   type: TxType;
@@ -17,6 +40,12 @@ export type Transaction = {
   categoryId: string | null;
   categoryName: string | null;
   categoryColor: string | null;
+  accountId: string | null;
+  accountName: string | null;
+  isRecurring: boolean;
+  installmentCurrent: number | null;
+  installmentTotal: number | null;
+  parentTxId: string | null;
   debtId: string | null;
   source: string;
   notes: string | null;
@@ -96,6 +125,12 @@ type TxRow = {
   category_id: string | null;
   category_name: string | null;
   category_color: string | null;
+  account_id?: string | null;
+  account_name?: string | null;
+  is_recurring?: number | null;
+  installment_current?: number | null;
+  installment_total?: number | null;
+  parent_tx_id?: string | null;
   debt_id: string | null;
   source: string;
   notes: string | null;
@@ -111,14 +146,24 @@ const mapTx = (r: TxRow): Transaction => ({
   categoryId: r.category_id,
   categoryName: r.category_name,
   categoryColor: r.category_color,
+  accountId: r.account_id ?? null,
+  accountName: r.account_name ?? null,
+  isRecurring: !!r.is_recurring,
+  installmentCurrent: r.installment_current ?? null,
+  installmentTotal: r.installment_total ?? null,
+  parentTxId: r.parent_tx_id ?? null,
   debtId: r.debt_id,
   source: r.source,
   notes: r.notes,
 });
 
 const TX_SELECT = `SELECT t.id, t.type, t.description, t.amount_cents, t.date, t.status, t.category_id, t.debt_id, t.source, t.notes,
-  c.name AS category_name, c.color AS category_color
-  FROM transactions t LEFT JOIN categories c ON c.id = t.category_id`;
+  t.account_id, t.is_recurring, t.installment_current, t.installment_total, t.parent_tx_id,
+  c.name AS category_name, c.color AS category_color,
+  a.name AS account_name
+  FROM transactions t
+  LEFT JOIN categories c ON c.id = t.category_id
+  LEFT JOIN accounts a ON a.id = t.account_id`;
 
 export type TxFilter = {
   from?: string;
@@ -126,6 +171,9 @@ export type TxFilter = {
   type?: TxType;
   status?: TxStatus;
   categoryId?: string;
+  accountId?: string;
+  recurring?: boolean;
+  installments?: boolean;
   q?: string;
   limit?: number;
 };
@@ -138,6 +186,9 @@ export async function listTransactions(userId: string, f: TxFilter = {}): Promis
   if (f.type) (where.push("t.type = ?"), args.push(f.type));
   if (f.status) (where.push("t.status = ?"), args.push(f.status));
   if (f.categoryId) (where.push("t.category_id = ?"), args.push(f.categoryId));
+  if (f.accountId) (where.push("t.account_id = ?"), args.push(f.accountId));
+  if (f.recurring !== undefined) (where.push("t.is_recurring = ?"), args.push(f.recurring ? 1 : 0));
+  if (f.installments) where.push("t.installment_total IS NOT NULL AND t.installment_total > 1");
   if (f.q) (where.push("t.description LIKE ?"), args.push(`%${f.q}%`));
   const limit = f.limit ? ` LIMIT ${Math.max(1, Math.min(5000, f.limit | 0))}` : "";
   const rows = await query<TxRow>(`${TX_SELECT} WHERE ${where.join(" AND ")} ORDER BY t.date DESC, t.created_at DESC${limit}`, args);
@@ -151,6 +202,11 @@ export type TxInput = {
   date: string;
   status: TxStatus;
   categoryId: string | null;
+  accountId?: string | null;
+  isRecurring?: boolean;
+  installmentCurrent?: number | null;
+  installmentTotal?: number | null;
+  parentTxId?: string | null;
   notes?: string | null;
   debtId?: string | null;
   source?: string;
@@ -159,9 +215,26 @@ export type TxInput = {
 export async function createTransaction(userId: string, t: TxInput): Promise<string> {
   const id = uid();
   await exec(
-    `INSERT INTO transactions (id, user_id, type, description, amount_cents, date, status, category_id, debt_id, source, notes)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, userId, t.type, t.description, t.amountCents, t.date, t.status, t.categoryId, t.debtId ?? null, t.source ?? "manual", t.notes ?? null],
+    `INSERT INTO transactions (id, user_id, type, description, amount_cents, date, status, category_id, account_id, is_recurring, installment_current, installment_total, parent_tx_id, debt_id, source, notes)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      id,
+      userId,
+      t.type,
+      t.description,
+      t.amountCents,
+      t.date,
+      t.status,
+      t.categoryId,
+      t.accountId ?? null,
+      t.isRecurring ? 1 : 0,
+      t.installmentCurrent ?? null,
+      t.installmentTotal ?? null,
+      t.parentTxId ?? null,
+      t.debtId ?? null,
+      t.source ?? "manual",
+      t.notes ?? null,
+    ],
   );
   return id;
 }
@@ -176,10 +249,22 @@ export async function updateTransaction(userId: string, id: string, t: Partial<T
     ["date", "date"],
     ["status", "status"],
     ["categoryId", "category_id"],
+    ["accountId", "account_id"],
+    ["isRecurring", "is_recurring"],
+    ["installmentCurrent", "installment_current"],
+    ["installmentTotal", "installment_total"],
     ["notes", "notes"],
   ];
   for (const [k, col] of map) {
-    if (t[k] !== undefined) (sets.push(`${col} = ?`), args.push(t[k] as string | number | null));
+    if (t[k] !== undefined) {
+      if (k === "isRecurring") {
+        sets.push(`${col} = ?`);
+        args.push(t[k] ? 1 : 0);
+      } else {
+        sets.push(`${col} = ?`);
+        args.push(t[k] as string | number | null);
+      }
+    }
   }
   if (!sets.length) return;
   args.push(userId, id);
@@ -404,7 +489,299 @@ export async function deleteAccount(userId: string) {
     { sql: "DELETE FROM transactions WHERE user_id = ?", args: [userId] },
     { sql: "DELETE FROM budgets WHERE user_id = ?", args: [userId] },
     { sql: "DELETE FROM debts WHERE user_id = ?", args: [userId] },
+    { sql: "DELETE FROM accounts WHERE user_id = ?", args: [userId] },
+    { sql: "DELETE FROM goals WHERE user_id = ?", args: [userId] },
     { sql: "DELETE FROM categories WHERE user_id = ?", args: [userId] },
     { sql: "DELETE FROM users WHERE id = ?", args: [userId] },
   ]);
+}
+
+/* -------------------------- Parcelamento Inteligente ---------------------- */
+
+export async function createInstallmentTransactions(
+  userId: string,
+  baseTx: TxInput,
+  installments: number,
+): Promise<string[]> {
+  const count = Math.max(1, Math.min(72, installments | 0));
+  if (count <= 1) {
+    const singleId = await createTransaction(userId, baseTx);
+    return [singleId];
+  }
+
+  const parentId = uid();
+  const perInstallmentCents = Math.round(baseTx.amountCents / count);
+  const ids: string[] = [];
+
+  const [y, m, d] = baseTx.date.split("-").map(Number);
+
+  for (let i = 0; i < count; i++) {
+    const dateObj = new Date(y, m - 1 + i, d);
+    const dateStr = dateObj.toISOString().slice(0, 10);
+    const id = uid();
+    ids.push(id);
+
+    await exec(
+      `INSERT INTO transactions (id, user_id, type, description, amount_cents, date, status, category_id, account_id, is_recurring, installment_current, installment_total, parent_tx_id, debt_id, source, notes)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        id,
+        userId,
+        baseTx.type,
+        `${baseTx.description} (${i + 1}/${count})`,
+        perInstallmentCents,
+        dateStr,
+        i === 0 ? baseTx.status : "pending",
+        baseTx.categoryId,
+        baseTx.accountId ?? null,
+        0,
+        i + 1,
+        count,
+        parentId,
+        baseTx.debtId ?? null,
+        baseTx.source ?? "manual",
+        baseTx.notes ?? null,
+      ],
+    );
+  }
+
+  return ids;
+}
+
+/* ------------------------------- Contas & Cartões ------------------------- */
+
+type AccountRow = {
+  id: string;
+  name: string;
+  type: AccountType;
+  institution: string | null;
+  balance_cents: number;
+  credit_limit_cents: number | null;
+  closing_day: number | null;
+  due_day: number | null;
+  color: string;
+};
+
+const mapAccount = (r: AccountRow): Account => ({
+  id: r.id,
+  name: r.name,
+  type: r.type,
+  institution: r.institution,
+  balanceCents: Number(r.balance_cents),
+  creditLimitCents: r.credit_limit_cents != null ? Number(r.credit_limit_cents) : null,
+  closingDay: r.closing_day,
+  dueDay: r.due_day,
+  color: r.color,
+});
+
+export async function listAccounts(userId: string): Promise<Account[]> {
+  const rows = await query<AccountRow>(
+    "SELECT id, name, type, institution, balance_cents, credit_limit_cents, closing_day, due_day, color FROM accounts WHERE user_id = ? ORDER BY type, name",
+    [userId],
+  );
+  return rows.map(mapAccount);
+}
+
+export async function createAccount(
+  userId: string,
+  a: {
+    name: string;
+    type: AccountType;
+    institution?: string | null;
+    balanceCents?: number;
+    creditLimitCents?: number | null;
+    closingDay?: number | null;
+    dueDay?: number | null;
+    color?: string;
+  },
+): Promise<string> {
+  const id = uid();
+  await exec(
+    `INSERT INTO accounts (id, user_id, name, type, institution, balance_cents, credit_limit_cents, closing_day, due_day, color)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [
+      id,
+      userId,
+      a.name,
+      a.type,
+      a.institution ?? null,
+      a.balanceCents ?? 0,
+      a.creditLimitCents ?? null,
+      a.closingDay ?? null,
+      a.dueDay ?? null,
+      a.color ?? "#10b981",
+    ],
+  );
+  return id;
+}
+
+export async function updateAccount(
+  userId: string,
+  id: string,
+  a: Partial<{
+    name: string;
+    type: AccountType;
+    institution: string | null;
+    balanceCents: number;
+    creditLimitCents: number | null;
+    closingDay: number | null;
+    dueDay: number | null;
+    color: string;
+  }>,
+) {
+  const sets: string[] = [];
+  const args: (string | number | null)[] = [];
+  if (a.name !== undefined) (sets.push("name = ?"), args.push(a.name));
+  if (a.type !== undefined) (sets.push("type = ?"), args.push(a.type));
+  if (a.institution !== undefined) (sets.push("institution = ?"), args.push(a.institution));
+  if (a.balanceCents !== undefined) (sets.push("balance_cents = ?"), args.push(a.balanceCents));
+  if (a.creditLimitCents !== undefined) (sets.push("credit_limit_cents = ?"), args.push(a.creditLimitCents));
+  if (a.closingDay !== undefined) (sets.push("closing_day = ?"), args.push(a.closingDay));
+  if (a.dueDay !== undefined) (sets.push("due_day = ?"), args.push(a.dueDay));
+  if (a.color !== undefined) (sets.push("color = ?"), args.push(a.color));
+  if (!sets.length) return;
+  args.push(userId, id);
+  await exec(`UPDATE accounts SET ${sets.join(", ")} WHERE user_id = ? AND id = ?`, args);
+}
+
+export async function deleteAccountEntity(userId: string, id: string) {
+  await exec("UPDATE transactions SET account_id = NULL WHERE user_id = ? AND account_id = ?", [userId, id]);
+  await exec("DELETE FROM accounts WHERE user_id = ? AND id = ?", [userId, id]);
+}
+
+/* ------------------------------- Metas & Objetivos ------------------------ */
+
+type GoalRow = {
+  id: string;
+  name: string;
+  target_cents: number;
+  current_cents: number;
+  deadline: string | null;
+  color: string;
+};
+
+const mapGoal = (r: GoalRow): Goal => ({
+  id: r.id,
+  name: r.name,
+  targetCents: Number(r.target_cents),
+  currentCents: Number(r.current_cents),
+  deadline: r.deadline,
+  color: r.color,
+});
+
+export async function listGoals(userId: string): Promise<Goal[]> {
+  const rows = await query<GoalRow>(
+    "SELECT id, name, target_cents, current_cents, deadline, color FROM goals WHERE user_id = ? ORDER BY (current_cents >= target_cents), deadline IS NULL, deadline",
+    [userId],
+  );
+  return rows.map(mapGoal);
+}
+
+export async function createGoal(
+  userId: string,
+  g: { name: string; targetCents: number; currentCents?: number; deadline?: string | null; color?: string },
+): Promise<string> {
+  const id = uid();
+  await exec(
+    "INSERT INTO goals (id, user_id, name, target_cents, current_cents, deadline, color) VALUES (?,?,?,?,?,?,?)",
+    [id, userId, g.name, g.targetCents, g.currentCents ?? 0, g.deadline ?? null, g.color ?? "#10b981"],
+  );
+  return id;
+}
+
+export async function updateGoal(
+  userId: string,
+  id: string,
+  g: Partial<{ name: string; targetCents: number; currentCents: number; deadline: string | null; color: string }>,
+) {
+  const sets: string[] = [];
+  const args: (string | number | null)[] = [];
+  if (g.name !== undefined) (sets.push("name = ?"), args.push(g.name));
+  if (g.targetCents !== undefined) (sets.push("target_cents = ?"), args.push(g.targetCents));
+  if (g.currentCents !== undefined) (sets.push("current_cents = ?"), args.push(g.currentCents));
+  if (g.deadline !== undefined) (sets.push("deadline = ?"), args.push(g.deadline));
+  if (g.color !== undefined) (sets.push("color = ?"), args.push(g.color));
+  if (!sets.length) return;
+  args.push(userId, id);
+  await exec(`UPDATE goals SET ${sets.join(", ")} WHERE user_id = ? AND id = ?`, args);
+}
+
+export async function contributeGoal(userId: string, id: string, amountCents: number) {
+  await exec("UPDATE goals SET current_cents = MAX(0, current_cents + ?) WHERE user_id = ? AND id = ?", [
+    amountCents,
+    userId,
+    id,
+  ]);
+}
+
+export async function deleteGoal(userId: string, id: string) {
+  await exec("DELETE FROM goals WHERE user_id = ? AND id = ?", [userId, id]);
+}
+
+/* ------------------------------- Alertas Inteligentes --------------------- */
+
+export type SmartAlert = {
+  id: string;
+  type: "warning" | "danger" | "info" | "tip";
+  title: string;
+  description: string;
+  actionUrl?: string;
+  actionLabel?: string;
+};
+
+export async function getSmartAlerts(userId: string): Promise<SmartAlert[]> {
+  const alerts: SmartAlert[] = [];
+  const now = today();
+
+  // 1. Contas a pagar atrasadas ou vencendo em até 3 dias
+  const pending = await upcomingBills(userId, 5);
+  for (const bill of pending) {
+    if (bill.date < now) {
+      alerts.push({
+        id: `overdue-${bill.id}`,
+        type: "danger",
+        title: "Conta em atraso!",
+        description: `"${bill.description}" de ${(bill.amountCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} venceu em ${bill.date}.`,
+        actionUrl: "/lancamentos",
+        actionLabel: "Pagar agora",
+      });
+    } else if (bill.date <= now.slice(0, 8) + String(Math.min(31, Number(now.slice(8, 10)) + 3)).padStart(2, "0")) {
+      alerts.push({
+        id: `due-soon-${bill.id}`,
+        type: "warning",
+        title: "Vencimento próximo",
+        description: `"${bill.description}" vence em ${bill.date}. Evite juros de atraso.`,
+        actionUrl: "/lancamentos",
+        actionLabel: "Ver conta",
+      });
+    }
+  }
+
+  // 2. Orçamentos estourados ou próximos do teto
+  const currentM = now.slice(0, 7);
+  const budgets = await listBudgets(userId, currentM);
+  for (const b of budgets) {
+    const pct = b.limitCents > 0 ? (b.spentCents / b.limitCents) * 100 : 0;
+    if (pct >= 100) {
+      alerts.push({
+        id: `budget-over-${b.id}`,
+        type: "danger",
+        title: "Orçamento estourado!",
+        description: `Você ultrapassou o teto em ${b.categoryName}. Gasto atual: ${(b.spentCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}.`,
+        actionUrl: "/orcamentos",
+        actionLabel: "Ver orçamentos",
+      });
+    } else if (pct >= 85) {
+      alerts.push({
+        id: `budget-warn-${b.id}`,
+        type: "warning",
+        title: "Alerta de orçamento",
+        description: `Você já consumiu ${Math.round(pct)}% do orçamento de ${b.categoryName}.`,
+        actionUrl: "/orcamentos",
+        actionLabel: "Verificar",
+      });
+    }
+  }
+
+  return alerts.slice(0, 4);
 }

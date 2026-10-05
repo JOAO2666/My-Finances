@@ -7,6 +7,7 @@ import { parseMoney, today } from "@/lib/format";
 import { Modal } from "./modal";
 
 export type CatOption = { id: string; name: string; type: "expense" | "income" };
+export type AccOption = { id: string; name: string; type: string };
 export type TxEdit = {
   id: string;
   type: "expense" | "income";
@@ -15,25 +16,36 @@ export type TxEdit = {
   date: string;
   status: "paid" | "pending";
   categoryId: string | null;
+  accountId?: string | null;
+  isRecurring?: boolean;
   notes: string | null;
 };
 
 export function TransactionDialog({
   categories,
+  accounts = [],
   initial,
   defaultType = "expense",
   onClose,
 }: {
   categories: CatOption[];
+  accounts?: AccOption[];
   initial?: TxEdit;
   defaultType?: "expense" | "income";
   onClose: () => void;
 }) {
   const router = useRouter();
   const [type, setType] = useState<"expense" | "income">(initial?.type ?? defaultType);
+  const [isInstallment, setIsInstallment] = useState(false);
+  const [installments, setInstallments] = useState(3);
+  const [isRecurring, setIsRecurring] = useState(initial?.isRecurring ?? false);
+  const [amountStr, setAmountStr] = useState(initial ? (initial.amountCents / 100).toFixed(2).replace(".", ",") : "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const cats = categories.filter((c) => c.type === type);
+
+  const amountNumber = parseMoney(amountStr);
+  const perInstallment = isInstallment && installments > 1 && amountNumber > 0 ? (amountNumber / installments) : null;
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,6 +59,9 @@ export function TransactionDialog({
       date: String(f.get("date")),
       status: f.get("status") === "pending" ? "pending" : "paid",
       categoryId: String(f.get("categoryId")) || null,
+      accountId: String(f.get("accountId")) || null,
+      isRecurring,
+      installments: !initial && isInstallment && installments > 1 ? installments : undefined,
       notes: String(f.get("notes") ?? "") || null,
     };
     setBusy(true);
@@ -85,7 +100,7 @@ export function TransactionDialog({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label" htmlFor="amount">Valor (R$)</label>
+            <label className="label" htmlFor="amount">Valor {isInstallment && installments > 1 ? "Total" : ""} (R$)</label>
             <input
               id="amount"
               name="amount"
@@ -93,14 +108,16 @@ export function TransactionDialog({
               className="input"
               required
               placeholder="0,00"
-              defaultValue={initial ? (initial.amountCents / 100).toFixed(2).replace(".", ",") : ""}
+              value={amountStr}
+              onChange={(e) => setAmountStr(e.target.value)}
             />
           </div>
           <div>
-            <label className="label" htmlFor="date">Data / vencimento</label>
+            <label className="label" htmlFor="date">Data / 1º vencimento</label>
             <input id="date" name="date" type="date" className="input" required defaultValue={initial?.date ?? today()} />
           </div>
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label" htmlFor="categoryId">Categoria</label>
@@ -112,13 +129,74 @@ export function TransactionDialog({
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="status">Situação</label>
-            <select id="status" name="status" className="input" defaultValue={initial?.status ?? "paid"}>
-              <option value="paid">{type === "expense" ? "Pago" : "Recebido"}</option>
-              <option value="pending">{type === "expense" ? "A pagar" : "A receber"}</option>
+            <label className="label" htmlFor="accountId">Conta / Cartão</label>
+            <select id="accountId" name="accountId" className="input" defaultValue={initial?.accountId ?? ""}>
+              <option value="">Nenhuma / Dinheiro</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
             </select>
           </div>
         </div>
+
+        <div>
+          <label className="label" htmlFor="status">Situação</label>
+          <select id="status" name="status" className="input" defaultValue={initial?.status ?? "paid"}>
+            <option value="paid">{type === "expense" ? "Pago / Debitado" : "Recebido"}</option>
+            <option value="pending">{type === "expense" ? "A pagar (Pendente)" : "A receber (Pendente)"}</option>
+          </select>
+        </div>
+
+        {/* Recursos Avançados: Parcelamento e Recorrência */}
+        {!initial && type === "expense" && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isInstallment}
+                  onChange={(e) => {
+                    setIsInstallment(e.target.checked);
+                    if (e.target.checked) setIsRecurring(false);
+                  }}
+                  className="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span>Compra Parcelada</span>
+              </label>
+
+              {isInstallment && (
+                <select
+                  value={installments}
+                  onChange={(e) => setInstallments(Number(e.target.value))}
+                  className="input !w-auto !py-1 text-xs"
+                >
+                  {[2, 3, 4, 5, 6, 8, 10, 12, 18, 24, 36].map((n) => (
+                    <option key={n} value={n}>{n}x parcelas</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {isInstallment && perInstallment && (
+              <p className="text-[11px] font-medium text-emerald-700">
+                ⚡ Serão gerados {installments} lançamentos mensais de {perInstallment.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} cada.
+              </p>
+            )}
+
+            {!isInstallment && (
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isRecurring}
+                  onChange={(e) => setIsRecurring(e.target.checked)}
+                  className="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span>Assinatura fixa / Recorrente (Netflix, Aluguel, Academia)</span>
+              </label>
+            )}
+          </div>
+        )}
+
         <div>
           <label className="label" htmlFor="notes">Observações</label>
           <input id="notes" name="notes" className="input" maxLength={1000} defaultValue={initial?.notes ?? ""} />

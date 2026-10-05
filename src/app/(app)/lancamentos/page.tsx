@@ -1,7 +1,7 @@
 import { Search } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { brl, currentMonth, isMonth, monthRange } from "@/lib/format";
-import { listCategories, listTransactions, summary } from "@/lib/repo";
+import { listAccounts, listCategories, listTransactions, summary } from "@/lib/repo";
 import { MonthNav } from "@/components/month-nav";
 import { NewTransactionButton, TransactionList } from "@/components/transaction-list";
 
@@ -20,8 +20,9 @@ export default async function LancamentosPage({ searchParams }: { searchParams: 
   const q = first(sp.q).trim();
   const { from, to } = monthRange(month);
 
-  const [categories, items, sum] = await Promise.all([
+  const [categories, accounts, items, sum] = await Promise.all([
     listCategories(user.id),
+    listAccounts(user.id),
     listTransactions(user.id, {
       from,
       to,
@@ -38,7 +39,7 @@ export default async function LancamentosPage({ searchParams }: { searchParams: 
         <h1 className="text-2xl font-bold text-slate-900">Lançamentos</h1>
         <div className="flex flex-wrap items-center gap-3">
           <MonthNav month={month} base="/lancamentos" />
-          <NewTransactionButton categories={categories} />
+          <NewTransactionButton categories={categories} accounts={accounts} />
         </div>
       </div>
 
@@ -77,7 +78,7 @@ export default async function LancamentosPage({ searchParams }: { searchParams: 
       </form>
 
       <div className="card !py-2">
-        <TransactionList items={items} categories={categories} empty="Nada por aqui neste mês. Crie um lançamento ou envie um print." />
+        <TransactionList items={items} categories={categories} accounts={accounts} empty="Nada por aqui neste mês. Crie um lançamento ou envie um print." />
       </div>
     </div>
   );

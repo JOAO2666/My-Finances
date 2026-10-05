@@ -32,7 +32,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: S
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Relatórios</h1>
-        <p className="text-sm text-slate-500">Escolha o período e exporte em PDF ou Excel.</p>
+        <p className="text-sm text-slate-500">Escolha o período e exporte em PDF, Excel ou CSV.</p>
       </div>
 
       <section className="card space-y-4">
@@ -65,6 +65,9 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: S
           </a>
           <a href={`/api/export/xlsx?${qs}`} download className="btn-secondary">
             <FileSpreadsheet size={16} /> Baixar Excel (.xlsx)
+          </a>
+          <a href={`/api/export/csv?${qs}`} download className="btn-secondary">
+            <Download size={16} /> Baixar CSV
           </a>
         </div>
       </section>

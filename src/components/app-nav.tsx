@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bot, Camera, CreditCard, FileBarChart, LayoutDashboard, LogOut, PiggyBank, Receipt, Settings } from "lucide-react";
+import { Bot, Camera, CreditCard, FileBarChart, Landmark, LayoutDashboard, LogOut, PiggyBank, Receipt, Settings, Target } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/client";
 
 const items = [
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
   { href: "/lancamentos", label: "Lançamentos", icon: Receipt },
-  { href: "/importar", label: "Ler print", icon: Camera },
-  { href: "/assistente", label: "Assistente", icon: Bot },
+  { href: "/contas", label: "Contas", icon: Landmark },
   { href: "/orcamentos", label: "Orçamentos", icon: PiggyBank },
+  { href: "/metas", label: "Metas", icon: Target },
   { href: "/dividas", label: "Dívidas", icon: CreditCard },
+  { href: "/assistente", label: "Assistente", icon: Bot },
+  { href: "/importar", label: "Ler print", icon: Camera },
   { href: "/relatorios", label: "Relatórios", icon: FileBarChart },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
