@@ -37,7 +37,8 @@ export function route<A extends unknown[]>(
         return NextResponse.json({ error: e.message }, { status: e.status });
       }
       console.error("[api]", e);
-      return NextResponse.json({ error: "Erro interno do servidor." }, { status: 500 });
+      const msg = e instanceof Error ? e.message : "Erro interno do servidor.";
+      return NextResponse.json({ error: msg }, { status: 500 });
     }
   };
 }

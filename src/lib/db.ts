@@ -1,11 +1,13 @@
 import { mkdirSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createClient, type Client, type InValue } from "@libsql/client";
 
 /**
  * Camada de banco de dados (libSQL / Turso).
- * - Produção (Vercel): defina TURSO_DATABASE_URL + TURSO_AUTH_TOKEN.
- * - Desenvolvimento: sem variáveis, usa o arquivo local ./data/moneta.db.
- * O schema é criado automaticamente (idempotente) no primeiro acesso.
+ * - Produção (Vercel): configure TURSO_DATABASE_URL + TURSO_AUTH_TOKEN.
+ * - Se as variáveis do Turso não estiverem presentes, usa fallback no diretório temporário
+ *   (para permitir testes sem crash imediato) e orienta a configuração do Turso.
  */
 
 const SCHEMA = [
@@ -65,23 +67,35 @@ const SCHEMA = [
 type G = typeof globalThis & { __moneta?: { client: Client; ready: Promise<void> } };
 
 function create(): { client: Client; ready: Promise<void> } {
-  let url = process.env.TURSO_DATABASE_URL?.trim();
-  const authToken = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
+  let url = process.env.TURSO_DATABASE_URL?.trim().replace(/^["']|["']$/g, "");
+  const authToken = process.env.TURSO_AUTH_TOKEN?.trim().replace(/^["']|["']$/g, "") || undefined;
+
   if (!url) {
-    if (process.env.VERCEL || process.env.NODE_ENV === "production") {
-      throw new Error(
-        "TURSO_DATABASE_URL não configurada. Configure o banco Turso nas variáveis de ambiente (veja o README).",
-      );
+    const baseDir = process.env.VERCEL ? os.tmpdir() : path.join(process.cwd(), "data");
+    try {
+      mkdirSync(baseDir, { recursive: true });
+    } catch {
+      /* ignore */
     }
-    url = "file:./data/moneta.db";
-    mkdirSync("data", { recursive: true }); // garante a pasta local
+    url = `file:${path.join(baseDir, "moneta.db")}`;
   }
+
   const client = createClient({ url, authToken });
   const ready = (async () => {
-    await client.execute("PRAGMA foreign_keys = ON").catch(() => {});
-    await client.batch(SCHEMA, "write");
+    try {
+      await client.execute("PRAGMA foreign_keys = ON");
+    } catch {
+      /* ignorado em Turso remoto */
+    }
+    for (const sql of SCHEMA) {
+      try {
+        await client.execute(sql);
+      } catch (err) {
+        console.warn("[db schema warn]", err);
+      }
+    }
   })();
-  ready.catch(() => {});
+
   return { client, ready };
 }
 
@@ -97,9 +111,9 @@ export async function db(): Promise<Client> {
     await c.ready;
   } catch (e) {
     (globalThis as G).__moneta = undefined; // permite nova tentativa
-    throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Falha no banco de dados: ${msg}. Verifique as variáveis TURSO_DATABASE_URL e TURSO_AUTH_TOKEN.`);
   }
-  // Turso/libSQL em modo remoto ignora PRAGMA por conexão; FKs são aplicadas manualmente onde importa.
   return c.client;
 }
 

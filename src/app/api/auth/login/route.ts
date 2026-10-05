@@ -14,7 +14,7 @@ export const POST = route(
   async (_u, req) => {
     const { email, password } = await json(req, schema);
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "local";
-    if (!rateLimit(`login:${ip}:${email}`, 8, 5 * 60_000)) throw new HttpError("Muitas tentativas. Aguarde alguns minutos.", 429);
+    if (!rateLimit(`login:${ip}:${email}`, 20, 5 * 60_000)) throw new HttpError("Muitas tentativas. Aguarde alguns minutos.", 429);
 
     const u = await queryOne<{ id: string; password_hash: string }>("SELECT id, password_hash FROM users WHERE email = ?", [email]);
     // iguala o tempo de resposta quando o e-mail não existe

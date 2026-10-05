@@ -15,7 +15,7 @@ const schema = z.object({
 export const POST = route(
   async (_u, req) => {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "local";
-    if (!rateLimit(`reg:${ip}`, 5, 10 * 60_000)) throw new HttpError("Muitas tentativas. Aguarde alguns minutos.", 429);
+    if (!rateLimit(`reg:${ip}`, 20, 5 * 60_000)) throw new HttpError("Muitas tentativas. Aguarde alguns minutos.", 429);
 
     const { name, email, password } = await json(req, schema);
     if (await queryOne("SELECT id FROM users WHERE email = ?", [email])) {
