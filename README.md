@@ -46,9 +46,7 @@ turso db tokens create moneta         # -> TURSO_AUTH_TOKEN
 ### 2. Suba o código para o GitHub
 
 ```bash
-git init && git add . && git commit -m "Moneta"
-git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/moneta.git
+git remote add origin https://github.com/JOAO2666/My-Finances.git
 git push -u origin main
 ```
 
