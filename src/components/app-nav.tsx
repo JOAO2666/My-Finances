@@ -11,6 +11,7 @@ import {
   Landmark,
   LayoutDashboard,
   LogOut,
+  PanelLeftClose,
   PiggyBank,
   Receipt,
   Settings,
@@ -29,13 +30,21 @@ const items = [
   { href: "/orcamentos", label: "Orçamentos", icon: PiggyBank },
   { href: "/metas", label: "Metas", icon: Target },
   { href: "/dividas", label: "Dívidas", icon: CreditCard },
-  { href: "/assistente", label: "Assistente", icon: Bot },
+  { href: "/assistente", label: "Agentes IA", icon: Bot },
   { href: "/importar", label: "Ler print", icon: Camera },
   { href: "/relatorios", label: "Relatórios", icon: FileBarChart },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
-export function AppNav({ name }: { name: string }) {
+export function AppNav({
+  name,
+  collapsed = false,
+  onToggleSidebar,
+}: {
+  name: string;
+  collapsed?: boolean;
+  onToggleSidebar?: () => void;
+}) {
   const path = usePathname();
   const router = useRouter();
   const [activeItem, setActiveItem] = useState<string | null>(null);
@@ -56,20 +65,39 @@ export function AppNav({ name }: { name: string }) {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-slate-200 bg-white/95 backdrop-blur-md p-4 lg:flex z-20 shadow-sm">
-        <Link
-          href="/dashboard"
-          prefetch={false}
-          onClick={() => handleNavClick("/dashboard")}
-          className="group mb-6 flex items-center gap-2.5 px-2 text-xl font-bold text-brand-700 transition active:scale-95"
-        >
-          <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-tr from-brand-700 to-emerald-500 text-white shadow-md shadow-brand-500/20 group-hover:rotate-6 transition-transform">
-            M
-          </span>
-          <span className="tracking-tight text-slate-900">
-            My <span className="text-brand-600">Finances</span>
-          </span>
-        </Link>
+      <aside
+        className={clsx(
+          "fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-4 lg:flex z-20 shadow-sm transition-transform duration-300 ease-in-out",
+          collapsed && "-translate-x-full pointer-events-none"
+        )}
+      >
+        <div className="mb-6 flex items-center justify-between px-2">
+          <Link
+            href="/dashboard"
+            prefetch={false}
+            onClick={() => handleNavClick("/dashboard")}
+            className="group flex items-center gap-2.5 text-xl font-bold text-brand-700 transition active:scale-95"
+          >
+            <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-tr from-brand-700 to-emerald-500 text-white shadow-md shadow-brand-500/20 group-hover:rotate-6 transition-transform">
+              M
+            </span>
+            <span className="tracking-tight text-slate-900 dark:text-white">
+              My <span className="text-brand-600">Finances</span>
+            </span>
+          </Link>
+
+          {onToggleSidebar && (
+            <button
+              onClick={onToggleSidebar}
+              type="button"
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 active:scale-90 transition"
+              title="Fechar painel lateral (mais espaço na tela)"
+              aria-label="Fechar painel lateral"
+            >
+              <PanelLeftClose size={18} />
+            </button>
+          )}
+        </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1">
           {items.map(({ href, label, icon: Icon }) => {

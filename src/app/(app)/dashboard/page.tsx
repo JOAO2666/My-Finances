@@ -9,6 +9,7 @@ import { NewTransactionButton, TransactionList } from "@/components/transaction-
 import { BudgetBar } from "@/components/budget-bar";
 import { SmartAlertsBanner } from "@/components/smart-alerts";
 import { AuditButton } from "@/components/audit-modal";
+import { AgentTeamWidget } from "@/components/agent-team-widget";
 
 export const metadata = { title: "Painel" };
 
@@ -76,6 +77,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </div>
         ))}
       </div>
+
+      <AgentTeamWidget />
 
       {overBudgets.length > 0 && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
