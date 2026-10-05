@@ -31,6 +31,7 @@ const items = [
   { href: "/metas", label: "Metas", icon: Target },
   { href: "/dividas", label: "Dívidas", icon: CreditCard },
   { href: "/assistente", label: "Agentes IA", icon: Bot },
+  { href: "/pierre-chat", label: "Pierre Chat", icon: Sparkles },
   { href: "/importar", label: "Ler print", icon: Camera },
   { href: "/relatorios", label: "Relatórios", icon: FileBarChart },
   { href: "/configuracoes", label: "Configurações", icon: Settings },

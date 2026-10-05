@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ExternalLink, KeyRound, Smartphone, Trash2 } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  ExternalLink,
+  KeyRound,
+  Smartphone,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { api } from "@/lib/client";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -295,9 +305,63 @@ function AppearanceSection() {
   );
 }
 
+function PierreChatSection() {
+  return (
+    <section className="card space-y-4 border-2 border-emerald-500/20 dark:border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 text-[#a3ff12] shadow-md">
+            <Bot size={22} />
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-slate-900 dark:text-white">Interface Pierre Chat (pierre.finance/chat)</h2>
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-[#a3ff12]">
+                Clone de Alta Fidelidade
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              Interface experimental clone de <code>pierre.finance/chat</code>. Conectada diretamente ao seu banco de dados com os 4 agentes especializados (Albert, Marie, Galileu e Pierre Computer).
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/pierre-chat"
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white dark:bg-[#a3ff12] dark:text-black shadow-md hover:opacity-95 active:scale-95 transition-all"
+        >
+          <Sparkles size={14} />
+          <span>Testar Pierre Chat</span>
+          <ArrowRight size={14} />
+        </Link>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-4 pt-1">
+        <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-white/[0.02] p-3 text-xs">
+          <span className="font-bold text-blue-600 dark:text-blue-400">Albert</span>
+          <p className="text-[11px] text-slate-500 mt-1">Vigia diário de contas a vencer e cobranças estranhas.</p>
+        </div>
+        <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-white/[0.02] p-3 text-xs">
+          <span className="font-bold text-purple-600 dark:text-purple-400">Marie</span>
+          <p className="text-[11px] text-slate-500 mt-1">Análise comportamental quinzenal de consumo.</p>
+        </div>
+        <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-white/[0.02] p-3 text-xs">
+          <span className="font-bold text-emerald-600 dark:text-emerald-400">Galileu</span>
+          <p className="text-[11px] text-slate-500 mt-1">Estrategista mensal, regra 50-30-20 e metas.</p>
+        </div>
+        <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-white/[0.02] p-3 text-xs">
+          <span className="font-bold text-amber-600 dark:text-amber-400">Pierre Computer</span>
+          <p className="text-[11px] text-slate-500 mt-1">Simulador de compras parceladas e dívidas.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function SettingsClient({ hasKey, model, categories }: { hasKey: boolean; model: string; categories: Cat[] }) {
   return (
     <div className="space-y-5">
+      <PierreChatSection />
       <AppearanceSection />
       <GeminiSection hasKey={hasKey} model={model} />
       <ApkSection />
