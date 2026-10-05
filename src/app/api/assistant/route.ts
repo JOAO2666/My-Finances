@@ -122,5 +122,5 @@ ${context}`;
     });
     created.push({ id, description, amountCents, type, date, categoryName: cat?.name ?? null });
   }
-  return { reply: out.reply, created };
+  return { reply: out.reply ?? "Entendido!", created };
 });

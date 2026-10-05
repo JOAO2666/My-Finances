@@ -174,7 +174,7 @@ export function ImportClient({ hasKey }: { hasKey: boolean }) {
       {!hasKey && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           Para ler prints você precisa cadastrar sua chave de API do Google em{" "}
-          <Link href="/configuracoes" className="font-semibold underline">Configurações</Link>.
+          <Link href="/configuracoes" prefetch={false} className="font-semibold underline">Configurações</Link>.
         </div>
       )}
 

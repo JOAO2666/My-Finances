@@ -14,6 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {!user.hasGeminiKey && (
           <Link
             href="/configuracoes"
+            prefetch={false}
             className="mb-5 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:bg-amber-100"
           >
             <KeyRound size={18} className="shrink-0" />

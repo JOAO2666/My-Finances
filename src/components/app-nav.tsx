@@ -31,7 +31,7 @@ export function AppNav({ name }: { name: string }) {
     <>
       {/* Desktop */}
       <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-slate-200 bg-white p-4 lg:flex">
-        <Link href="/dashboard" className="mb-6 flex items-center gap-2 px-2 text-xl font-bold text-brand-700">
+        <Link href="/dashboard" prefetch={false} className="mb-6 flex items-center gap-2 px-2 text-xl font-bold text-brand-700">
           <span className="grid size-8 place-items-center rounded-lg bg-brand-600 text-white">M</span> Moneta
         </Link>
         <nav className="flex-1 space-y-1">
@@ -39,6 +39,7 @@ export function AppNav({ name }: { name: string }) {
             <Link
               key={href}
               href={href}
+              prefetch={false}
               className={clsx(
                 "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
                 path.startsWith(href) ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100",
@@ -58,7 +59,7 @@ export function AppNav({ name }: { name: string }) {
 
       {/* Mobile */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur lg:hidden">
-        <Link href="/dashboard" className="flex items-center gap-2 font-bold text-brand-700">
+        <Link href="/dashboard" prefetch={false} className="flex items-center gap-2 font-bold text-brand-700">
           <span className="grid size-7 place-items-center rounded-lg bg-brand-600 text-sm text-white">M</span> Moneta
         </Link>
         <button onClick={logout} className="btn-ghost btn-sm" aria-label="Sair">
@@ -70,6 +71,7 @@ export function AppNav({ name }: { name: string }) {
           <Link
             key={href}
             href={href}
+            prefetch={false}
             className={clsx(
               "flex min-w-[4.6rem] flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-medium",
               path.startsWith(href) ? "text-brand-700" : "text-slate-500",

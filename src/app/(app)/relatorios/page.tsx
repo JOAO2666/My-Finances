@@ -41,6 +41,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: S
             <Link
               key={p.label}
               href={`/relatorios?from=${p.from}&to=${p.to}`}
+              prefetch={false}
               className={p.from === from && p.to === to ? "btn-primary btn-sm" : "btn-secondary btn-sm"}
             >
               {p.label}
