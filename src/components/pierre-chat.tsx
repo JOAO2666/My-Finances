@@ -34,6 +34,8 @@ import {
   Target,
   TrendingUp,
   Volume2,
+  X,
+  Image as ImageIcon,
   type LucideIcon,
 } from "lucide-react";
 import clsx from "clsx";
@@ -41,6 +43,20 @@ import { api } from "@/lib/client";
 import { brl } from "@/lib/format";
 import { triggerHaptic } from "@/lib/haptics";
 import { ThemeToggle } from "./theme-toggle";
+
+async function prepareImage(file: File): Promise<{ mimeType: string; data: string; preview: string }> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const url = canvas.toDataURL("image/jpeg", 0.88);
+  return { mimeType: "image/jpeg", data: url.split(",")[1], preview: url };
+}
 
 type AgentId = "sentinel" | "behavior" | "strategist" | "simulator";
 
@@ -133,6 +149,7 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   time: string;
+  imagePreview?: string;
   createdTx?: { description: string; amountCents: number; type: string }[];
   isThinking?: boolean;
 };
@@ -154,11 +171,50 @@ export function PierreChatInterface({ hasKey = true }: { hasKey?: boolean }) {
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState<string | null>(null);
+  const [attachedImage, setAttachedImage] = useState<{
+    file: File;
+    name: string;
+    preview: string;
+    mimeType: string;
+    data: string;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    const onPaste = async (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []);
+      const img = files.find((f) => /^image\//.test(f.type) || f.type === "application/pdf");
+      if (img) {
+        e.preventDefault();
+        try {
+          const prep = await prepareImage(img);
+          setAttachedImage({ file: img, name: img.name || "print-colado.png", ...prep });
+          triggerHaptic("pop");
+        } catch {
+          /* ignore error */
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const prep = await prepareImage(file);
+      setAttachedImage({ file, name: file.name, ...prep });
+      triggerHaptic("pop");
+    } catch {
+      alert("Não foi possível carregar a imagem.");
+    }
+  }
 
   function switchAgent(id: AgentId) {
     if (id === selectedAgent) return;
@@ -206,51 +262,130 @@ export function PierreChatInterface({ hasKey = true }: { hasKey?: boolean }) {
 
   async function handleSend(textToSend?: string) {
     const text = (textToSend ?? input).trim();
-    if (!text || loading) return;
+    const imageToSend = attachedImage;
+    if ((!text && !imageToSend) || loading) return;
 
     triggerHaptic("tap");
     const userMsg: Message = {
       id: String(Date.now()),
       role: "user",
-      content: text,
+      content: text || "Analise esta imagem financeira com OCR e registre no sistema.",
       time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      imagePreview: imageToSend?.preview,
     };
 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setAttachedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setLoading(true);
 
     try {
-      const history = [...messages, userMsg]
-        .slice(-10)
-        .map((m) => ({ role: m.role, content: m.content }));
+      if (imageToSend) {
+        // Envia imagem diretamente para extração OCR & cruzamento com contas
+        const ocrRes = await api<{
+          results: Array<{
+            kind: string;
+            entity: string;
+            id: string | null;
+            description: string;
+            issuer: string | null;
+            amountCents: number;
+            date: string;
+            type: "expense" | "income";
+            status: string;
+            categoryName: string | null;
+            accountName?: string | null;
+            duplicate: boolean;
+          }>;
+          saved: boolean;
+        }>("POST", "/api/ocr", {
+          mimeType: imageToSend.mimeType,
+          data: imageToSend.data,
+          save: true,
+        });
 
-      const res = await api<{
-        reply: string;
-        transactions?: { description: string; amount: number; type: "expense" | "income" }[];
-      }>("POST", "/api/assistant", {
-        agent: selectedAgent,
-        messages: history,
-      });
+        triggerHaptic("success", true);
 
-      triggerHaptic("success", true);
+        if (!ocrRes.results || ocrRes.results.length === 0) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: String(Date.now() + 1),
+              role: "assistant",
+              content: `Analisei o print enviado, mas não identifiquei cobranças ou dados financeiros claros. Tente enviar um print mais nítido ou informe o valor por texto.`,
+              time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+            },
+          ]);
+        } else {
+          const itemsSummary = ocrRes.results
+            .map((r) => {
+              const statusStr = r.duplicate
+                ? "(já existia no sistema, duplicidade prevenida)"
+                : "(registrado com sucesso)";
+              const accStr = r.accountName ? ` na conta **${r.accountName}**` : "";
+              const catStr = r.categoryName ? ` [${r.categoryName}]` : "";
+              return `• **${r.description}**: ${brl(r.amountCents)}${catStr}${accStr} ${statusStr}`;
+            })
+            .join("\n");
 
-      const createdTx = res.transactions?.map((t) => ({
-        description: t.description,
-        amountCents: Math.round(t.amount * 100),
-        type: t.type,
-      }));
+          const replyText =
+            `**${agent.name} aqui.** Analisei o print enviado e extraí via OCR:\n\n${itemsSummary}\n\n` +
+            (text
+              ? `Em relação à sua mensagem ("${text}"): os valores foram cruzados com suas contas bancárias e categorias.`
+              : `Todos os dados foram cruzados e integrados às suas finanças.`);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(Date.now() + 1),
-          role: "assistant",
-          content: res.reply || "Tudo certo! Análise processada.",
-          time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-          createdTx,
-        },
-      ]);
+          const createdTx = ocrRes.results
+            .filter((r) => !r.duplicate)
+            .map((r) => ({
+              description: r.description,
+              amountCents: r.amountCents,
+              type: r.type,
+            }));
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: String(Date.now() + 1),
+              role: "assistant",
+              content: replyText,
+              time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+              createdTx,
+            },
+          ]);
+        }
+      } else {
+        const history = [...messages, userMsg]
+          .slice(-10)
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const res = await api<{
+          reply: string;
+          transactions?: { description: string; amount: number; type: "expense" | "income" }[];
+        }>("POST", "/api/assistant", {
+          agent: selectedAgent,
+          messages: history,
+        });
+
+        triggerHaptic("success", true);
+
+        const createdTx = res.transactions?.map((t) => ({
+          description: t.description,
+          amountCents: Math.round(t.amount * 100),
+          type: t.type,
+        }));
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: String(Date.now() + 1),
+            role: "assistant",
+            content: res.reply || "Tudo certo! Análise processada.",
+            time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+            createdTx,
+          },
+        ]);
+      }
     } catch (err) {
       triggerHaptic("error", true);
       setMessages((prev) => [
@@ -417,6 +552,13 @@ export function PierreChatInterface({ hasKey = true }: { hasKey?: boolean }) {
                     : "border border-slate-200/80 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] text-slate-800 dark:text-slate-200 rounded-bl-xs"
                 )}
               >
+                {m.imagePreview && (
+                  <div className="mb-2.5 overflow-hidden rounded-2xl border border-white/20 max-w-xs shadow-md">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.imagePreview} alt="Print anexado" className="max-h-52 w-auto object-cover rounded-2xl" />
+                  </div>
+                )}
+
                 <div className="whitespace-pre-wrap leading-relaxed">
                   {m.content}
                 </div>
@@ -472,7 +614,7 @@ export function PierreChatInterface({ hasKey = true }: { hasKey?: boolean }) {
             </span>
             <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] px-4 py-3 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
               <Loader2 size={14} className="animate-spin text-emerald-500 dark:text-[#a3ff12]" />
-              <span>{agent.name} está cruzando seus dados bancários...</span>
+              <span>{agent.name} está analisando o print e cruzando seus dados bancários...</span>
             </div>
           </div>
         )}
@@ -482,6 +624,25 @@ export function PierreChatInterface({ hasKey = true }: { hasKey?: boolean }) {
 
       {/* Signature Floating Pierre Bottom Input Bar */}
       <footer className="relative z-10 border-t border-slate-200 dark:border-white/10 bg-white/95 dark:bg-[#070b12]/95 p-3 sm:p-4 backdrop-blur-xl">
+        {attachedImage && (
+          <div className="mb-2 flex items-center gap-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-900 dark:text-emerald-300 animate-in fade-in slide-in-from-bottom-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={attachedImage.preview} alt="" className="size-11 rounded-xl object-cover border border-emerald-500/30 shadow-xs" />
+            <div className="min-w-0 flex-1 truncate">
+              <span className="font-semibold block truncate text-slate-900 dark:text-white">{attachedImage.name}</span>
+              <span className="text-[11px] text-emerald-600 dark:text-[#a3ff12]">Pronto para extrair com OCR & cruzar contas ao enviar</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAttachedImage(null)}
+              className="rounded-xl p-1.5 hover:bg-emerald-500/20 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition"
+              title="Remover print"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
         <form
           action="javascript:void(0)"
           onSubmit={(e) => {
@@ -491,13 +652,28 @@ export function PierreChatInterface({ hasKey = true }: { hasKey?: boolean }) {
           className="relative flex items-center gap-2 rounded-2xl border border-slate-300 dark:border-white/15 bg-slate-100/80 dark:bg-white/[0.05] p-1.5 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-inner"
         >
           <div className="flex items-center gap-1 pl-1">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Anexar print ou comprovante (ou cole com Ctrl+V)"
+              className="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-emerald-600 dark:hover:text-[#a3ff12] transition active:scale-90"
+            >
+              <Paperclip size={17} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              hidden
+              onChange={handleFileSelect}
+            />
             <Link
               href="/importar"
               prefetch={false}
-              title="Ler print de fatura ou boleto"
-              className="rounded-xl p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white transition active:scale-90"
+              title="Central de importação em lote"
+              className="hidden sm:inline-flex rounded-xl p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white transition active:scale-90"
             >
-              <Paperclip size={17} />
+              <Camera size={17} />
             </Link>
           </div>
 

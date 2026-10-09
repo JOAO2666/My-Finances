@@ -11,11 +11,46 @@ type Ctx = { params: Promise<{ format: string }> };
 
 export const GET = route(async (user, req, ctx: Ctx) => {
   const { format } = await ctx.params;
-  if (format !== "pdf" && format !== "xlsx" && format !== "csv") throw new HttpError("Formato inválido.", 404);
+  if (format !== "pdf" && format !== "xlsx" && format !== "csv" && format !== "json") {
+    throw new HttpError("Formato inválido.", 404);
+  }
   const sp = new URL(req.url).searchParams;
-  const from = sp.get("from");
-  const to = sp.get("to");
-  if (!isDate(from) || !isDate(to) || from > to) throw new HttpError("Período inválido.");
+  const fromParam = sp.get("from");
+  const toParam = sp.get("to");
+  const from = isDate(fromParam) ? fromParam : "2020-01-01";
+  const to = isDate(toParam) ? toParam : "2030-12-31";
+  if (from > to) throw new HttpError("Período inválido.");
+
+  if (format === "json") {
+    const { listAccounts, listCategories, listDebts, listGoals, listTransactions, listBudgets } = await import("@/lib/repo");
+    const [accounts, categories, transactions, debts, goals, budgets] = await Promise.all([
+      listAccounts(user.id),
+      listCategories(user.id),
+      listTransactions(user.id),
+      listDebts(user.id),
+      listGoals(user.id),
+      listBudgets(user.id, to.slice(0, 7)),
+    ]);
+    const payload = {
+      app: "Moneta / My Finances",
+      version: "2.0.0",
+      exportedAt: new Date().toISOString(),
+      user: { name: user.name, email: user.email },
+      accounts,
+      categories,
+      transactions,
+      debts,
+      goals,
+      budgets,
+    };
+    return new Response(JSON.stringify(payload, null, 2), {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename="moneta-backup-${new Date().toISOString().slice(0, 10)}.json"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 
   const report = await buildReport(user.id, user.name, from, to);
   const name = `moneta-relatorio-${from}_a_${to}`;

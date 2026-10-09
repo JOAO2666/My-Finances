@@ -1,9 +1,19 @@
 import { geminiJSON } from "./gemini";
-import { createDebt, createTransaction, listCategories, listTransactions, matchCategory, type Category, type TxType } from "./repo";
+import {
+  createDebt,
+  createTransaction,
+  listAccounts,
+  listCategories,
+  listTransactions,
+  matchCategory,
+  type Account,
+  type Category,
+  type TxType,
+} from "./repo";
 import { isDate, today } from "./format";
 
 export type OcrDoc = {
-  kind: "fatura" | "boleto" | "divida" | "comprovante" | "receita" | "outro";
+  kind: "fatura" | "boleto" | "divida" | "comprovante" | "receita" | "investimento" | "outro";
   description: string;
   amount: number;
   dueDate: string | null;
@@ -25,6 +35,8 @@ export type OcrResult = {
   status: "paid" | "pending";
   categoryId: string | null;
   categoryName: string | null;
+  accountId?: string | null;
+  accountName?: string | null;
   duplicate: boolean;
 };
 
@@ -36,7 +48,7 @@ const SCHEMA = {
       items: {
         type: "OBJECT",
         properties: {
-          kind: { type: "STRING", enum: ["fatura", "boleto", "divida", "comprovante", "receita", "outro"] },
+          kind: { type: "STRING", enum: ["fatura", "boleto", "divida", "comprovante", "receita", "investimento", "outro"] },
           description: { type: "STRING" },
           amount: { type: "NUMBER" },
           dueDate: { type: "STRING", nullable: true },
@@ -55,16 +67,24 @@ const SCHEMA = {
 function systemPrompt(cats: Category[]) {
   const exp = cats.filter((c) => c.type === "expense").map((c) => c.name).join(", ");
   const inc = cats.filter((c) => c.type === "income").map((c) => c.name).join(", ");
-  return `Você é um extrator de dados financeiros de imagens (prints de aplicativos de banco, faturas de cartão, boletos, contas de consumo, cobranças e propostas de renegociação de dívidas). Hoje é ${today()}.
+  return `Você é um extrator especialista de dados financeiros de imagens (prints de aplicativos bancários como Nubank/Inter/Itaú/Bradesco/Santander, faturas de cartão, boletos, comprovantes Pix/TED, notas fiscais, extratos de corretoras/investimentos e renegociação de dívidas). Hoje é ${today()}.
 
-Analise a imagem e extraia CADA cobrança/lançamento/dívida distinta visível. Regras:
-- "amount": valor total a pagar em reais, número com ponto decimal (ex.: 1234.56). Para fatura de cartão use o valor total da fatura; para boleto o valor do documento; para dívida o saldo devedor total. Nunca invente: se não houver valor legível, ignore o item.
-- "dueDate": vencimento no formato AAAA-MM-DD. Se aparecer só dia/mês, use o ano mais plausível em relação a hoje. Se não houver data, use null.
-- "description": curta e clara (ex.: "Fatura Nubank", "Boleto Condomínio", "Conta de luz - Enel"). "issuer": empresa/banco/credor, se visível.
-- "kind": fatura (cartão), boleto, divida (negativada/atrasada/renegociação/empréstimo/financiamento com saldo devedor), comprovante (pagamento já efetuado), receita (dinheiro a receber/recebido), outro.
-- "type": "expense" para contas e dívidas; "income" apenas para receitas/entradas.
-- "alreadyPaid": true apenas se a imagem indicar claramente que já foi pago/liquidado (comprovante, "pago", "quitado").
-- "category": escolha EXATAMENTE um nome desta lista. Despesas: ${exp}. Receitas: ${inc}.
+Analise a imagem e extraia CADA cobrança, lançamento, aporte de investimento, rendimento ou dívida distinta visível. Regras:
+- "amount": valor total em reais, número com ponto decimal (ex.: 1234.56). Para fatura use o total da fatura; para boleto o valor do documento; para comprovante o valor transferido/pago; para investimento o valor aportado ou rendimento recebido; para dívida o saldo devedor. Nunca invente: se não houver valor legível, ignore o item.
+- "dueDate": vencimento ou data da operação no formato AAAA-MM-DD. Se aparecer só dia/mês, use o ano mais plausível em relação a hoje. Se não houver data, use null.
+- "description": curta e clara (ex.: "Fatura Nubank", "Boleto Condomínio", "Comprovante Pix Supermercado", "Aporte CDB Inter", "Dividendos FIIs", "Conta de luz - Enel").
+- "issuer": banco, corretora, instituição ou credor (ex.: "Nubank", "Banco Inter", "XP", "Itaú", "Bradesco", "Santander", "BTG", "Enel", etc.), se visível.
+- "kind": 
+  - fatura (fatura de cartão de crédito)
+  - boleto (boleto de cobrança)
+  - divida (dívida atrasada, renegociação, empréstimo com saldo devedor)
+  - comprovante (comprovante Pix, débito ou pagamento efetuado)
+  - receita (salário, freelance, Pix recebido)
+  - investimento (aporte em CDB/LCI/Tesouro/Ações, compra de ativos ou rendimentos/dividendos)
+  - outro
+- "type": "expense" para contas, faturas, boletos e aportes/compras de investimentos; "income" para receitas e rendimentos/dividendos.
+- "alreadyPaid": true apenas se a imagem indicar que já foi liquidado/pago (comprovante Pix, "pago", "quitado", "aplicação realizada").
+- "category": escolha EXATAMENTE um nome desta lista. Despesas: ${exp}. Receitas: ${inc}. Se for investimento, use a categoria de Investimentos.
 - Se a imagem não contiver informação financeira, retorne documents vazio.
 Responda somente no JSON do schema.`;
 }
@@ -89,21 +109,53 @@ export async function extractFromImage(opts: {
 
 /** Converte os documentos extraídos em registros (ou apenas prévia). */
 export async function processOcrDocs(userId: string, docs: OcrDoc[], save: boolean): Promise<OcrResult[]> {
-  const cats = await listCategories(userId);
+  const [cats, accounts] = await Promise.all([listCategories(userId), listAccounts(userId)]);
   const results: OcrResult[] = [];
 
   for (const d of docs) {
-    const type: TxType = d.kind === "receita" ? "income" : d.type === "income" ? "income" : "expense";
     const isDebt = d.kind === "divida";
-    const cat = matchCategory(cats, isDebt ? "Dívidas e financiamentos" : d.category, type);
+    const isInvestment = d.kind === "investimento";
+    const type: TxType = d.kind === "receita" ? "income" : d.type === "income" ? "income" : "expense";
+
+    // Encontra a melhor categoria
+    let targetCat = d.category;
+    if (isDebt) {
+      targetCat = "Dívidas e financiamentos";
+    } else if (isInvestment && (!targetCat || targetCat === "Outros")) {
+      targetCat = "Investimentos";
+    }
+    const cat = matchCategory(cats, targetCat, type);
+
     const date = isDate(d.dueDate) ? d.dueDate : today();
     const amountCents = Math.round(d.amount * 100);
     const description = (d.description || d.issuer || "Lançamento").slice(0, 200);
     const status: "paid" | "pending" = d.alreadyPaid || d.kind === "comprovante" ? "paid" : "pending";
 
-    // evita duplicar o mesmo lançamento/dívida ao reenviar o mesmo print
+    // Cruzamento com contas bancárias cadastradas
+    let matchedAccount: Account | null = null;
+    if (d.issuer) {
+      const issuerLow = d.issuer.toLowerCase();
+      matchedAccount =
+        accounts.find(
+          (a) =>
+            a.name.toLowerCase().includes(issuerLow) ||
+            (a.institution && a.institution.toLowerCase().includes(issuerLow)) ||
+            issuerLow.includes(a.name.toLowerCase()),
+        ) ?? null;
+    }
+    if (!matchedAccount && isInvestment) {
+      matchedAccount = accounts.find((a) => a.type === "investment") ?? null;
+    }
+
+    // Cruzamento com lançamentos existentes no site para evitar duplicidades
     const existing = await listTransactions(userId, { from: date, to: date, q: description, limit: 50 });
-    const duplicate = !isDebt && existing.some((t) => t.amountCents === amountCents && t.description === description);
+    const duplicate =
+      !isDebt &&
+      existing.some(
+        (t) =>
+          t.amountCents === amountCents &&
+          (t.description === description || t.description.toLowerCase().includes(description.toLowerCase())),
+      );
 
     const base: OcrResult = {
       kind: d.kind,
@@ -117,6 +169,8 @@ export async function processOcrDocs(userId: string, docs: OcrDoc[], save: boole
       status,
       categoryId: cat?.id ?? null,
       categoryName: cat?.name ?? null,
+      accountId: matchedAccount?.id ?? null,
+      accountName: matchedAccount?.name ?? null,
       duplicate,
     };
 
@@ -137,7 +191,8 @@ export async function processOcrDocs(userId: string, docs: OcrDoc[], save: boole
           date,
           status,
           categoryId: cat?.id ?? null,
-          notes: d.issuer ? `Emissor: ${d.issuer}` : null,
+          accountId: matchedAccount?.id ?? null,
+          notes: d.issuer ? `Emissor/Banco: ${d.issuer}` : null,
           source: "ocr",
         });
       }

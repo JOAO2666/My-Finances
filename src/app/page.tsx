@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Camera, FileSpreadsheet, MessageCircle, PiggyBank, ShieldCheck, Wallet } from "lucide-react";
 import { getUser } from "@/lib/auth";
+import { AppLogo } from "@/components/app-logo";
 
 const features = [
   { icon: Camera, title: "Leitura de prints por IA", text: "Envie a captura de uma fatura, boleto ou dívida. O Gemini extrai valor, vencimento e descrição e já lança para você." },
@@ -17,8 +18,8 @@ export default async function Home() {
   return (
     <main>
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
-        <span className="flex items-center gap-2 text-xl font-bold text-brand-700">
-          <span className="grid size-8 place-items-center rounded-lg bg-brand-600 text-white">M</span> Moneta
+        <span className="flex items-center gap-2.5 text-xl font-bold text-slate-900 dark:text-white">
+          <AppLogo size={34} /> Moneta
         </span>
         <nav className="flex items-center gap-2">
           <Link href="/login" className="btn-ghost">Entrar</Link>

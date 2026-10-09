@@ -20,6 +20,8 @@ type Result = {
   status: "paid" | "pending";
   categoryId: string | null;
   categoryName: string | null;
+  accountId?: string | null;
+  accountName?: string | null;
   duplicate: boolean;
   undone?: boolean;
 };
@@ -40,6 +42,7 @@ const KIND: Record<string, string> = {
   divida: "Dívida",
   comprovante: "Comprovante",
   receita: "Receita",
+  investimento: "Investimento",
   outro: "Lançamento",
 };
 
@@ -163,6 +166,7 @@ export function ImportClient({ hasKey }: { hasKey: boolean }) {
             date: r.date,
             status: r.status,
             categoryId: r.categoryId,
+            accountId: r.accountId,
             source: "ocr",
           });
     setJobs((js) => js.map((j) => (j.key === jobKey ? { ...j, results: j.results.map((x, i) => (i === idx ? { ...x, id: out.id } : x)) } : j)));
@@ -200,7 +204,7 @@ export function ImportClient({ hasKey }: { hasKey: boolean }) {
       >
         <ImagePlus size={36} className="text-brand-600" />
         <p className="font-semibold text-slate-900">Arraste prints aqui, clique para escolher ou cole com Ctrl+V</p>
-        <p className="text-sm text-slate-500">Faturas de cartão, boletos, contas, extratos e dívidas · JPG, PNG, WEBP ou PDF</p>
+        <p className="text-sm text-slate-500">Gastos, faturas de cartão, boletos, comprovantes Pix, notas fiscais, extratos de investimento e dívidas · JPG, PNG, WEBP ou PDF</p>
         <input
           ref={inputRef}
           type="file"
@@ -258,7 +262,9 @@ export function ImportClient({ hasKey }: { hasKey: boolean }) {
                         <span className="badge bg-slate-200 text-slate-700">{KIND[r.kind] ?? r.kind}</span>
                       </p>
                       <p className="text-xs text-slate-500">
-                        Vence {fmtDate(r.date)} · {r.entity === "debt" ? "Dívidas" : r.categoryName ?? "Sem categoria"} ·{" "}
+                        {r.accountName ? <span className="font-semibold text-slate-700 dark:text-slate-300">{r.accountName} · </span> : null}
+                        {r.kind === "fatura" || r.kind === "boleto" || r.entity === "debt" ? "Vence " : "Data "}
+                        {fmtDate(r.date)} · {r.entity === "debt" ? "Dívidas" : r.categoryName ?? "Sem categoria"} ·{" "}
                         {r.status === "paid" ? "pago" : "pendente"}
                       </p>
                     </div>

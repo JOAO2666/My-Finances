@@ -5,24 +5,40 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Bot,
+  Camera,
+  Check,
   Compass,
   Cpu,
   Loader2,
+  Paperclip,
   Plus,
   Send,
   ShieldCheck,
   Sparkles,
   TrendingUp,
   X,
-  Check,
 } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/client";
 import { brl } from "@/lib/format";
 import { triggerHaptic } from "@/lib/haptics";
 
+async function prepareImage(file: File): Promise<{ mimeType: string; data: string; preview: string }> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const url = canvas.toDataURL("image/jpeg", 0.88);
+  return { mimeType: "image/jpeg", data: url.split(",")[1], preview: url };
+}
+
 type Created = { id: string; description: string; amountCents: number; type: "expense" | "income"; categoryName: string | null };
-type Msg = { role: "user" | "assistant"; content: string; created?: Created[]; error?: boolean };
+type Msg = { role: "user" | "assistant"; content: string; imagePreview?: string; created?: Created[]; error?: boolean };
 
 type AgentType = "sentinel" | "behavior" | "strategist" | "simulator";
 
@@ -135,6 +151,14 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
   const [customName, setCustomName] = useState("");
   const [customGoal, setCustomGoal] = useState("");
   const [customAgents, setCustomAgents] = useState<{ name: string; goal: string }[]>([]);
+  const [attachedImage, setAttachedImage] = useState<{
+    file: File;
+    name: string;
+    preview: string;
+    mimeType: string;
+    data: string;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const end = useRef<HTMLDivElement>(null);
 
@@ -145,6 +169,37 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
       /* ignore scroll errors */
     }
   }, [msgs, busy]);
+
+  useEffect(() => {
+    const onPaste = async (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []);
+      const img = files.find((f) => /^image\//.test(f.type) || f.type === "application/pdf");
+      if (img) {
+        e.preventDefault();
+        try {
+          const prep = await prepareImage(img);
+          setAttachedImage({ file: img, name: img.name || "print-colado.png", ...prep });
+          triggerHaptic("pop");
+        } catch {
+          /* ignore error */
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const prep = await prepareImage(file);
+      setAttachedImage({ file, name: file.name, ...prep });
+      triggerHaptic("pop");
+    } catch {
+      alert("Não foi possível carregar a imagem.");
+    }
+  }
 
   function switchAgent(newAgent: AgentType) {
     if (newAgent === activeAgent) return;
@@ -162,51 +217,130 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
   }
 
   async function send(text: string) {
-    if (!text.trim() || busy) return;
+    const textToSend = text.trim();
+    const imageToSend = attachedImage;
+    if ((!textToSend && !imageToSend) || busy) return;
+
     triggerHaptic("tap");
-    const userMsg: Msg = { role: "user", content: text };
+    const userMsg: Msg = {
+      role: "user",
+      content: textToSend || "Analise esta imagem financeira com OCR e registre no sistema.",
+      imagePreview: imageToSend?.preview,
+    };
     const nextMsgs = [...msgs, userMsg];
     setMsgs(nextMsgs);
     setInput("");
+    setAttachedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setBusy(true);
 
     try {
-      const history = nextMsgs
-        .filter((m) => !m.error)
-        .slice(-10)
-        .map((m) => ({ role: m.role, content: m.content }));
+      if (imageToSend) {
+        const ocrRes = await api<{
+          results: Array<{
+            kind: string;
+            entity: string;
+            id: string | null;
+            description: string;
+            issuer: string | null;
+            amountCents: number;
+            date: string;
+            type: "expense" | "income";
+            status: string;
+            categoryName: string | null;
+            accountName?: string | null;
+            duplicate: boolean;
+          }>;
+          saved: boolean;
+        }>("POST", "/api/ocr", {
+          mimeType: imageToSend.mimeType,
+          data: imageToSend.data,
+          save: true,
+        });
 
-      const out = await api<{
-        reply: string;
-        transactions?: { description: string; amount: number; date?: string; type: "expense" | "income"; category?: string; paid: boolean }[];
-      }>("POST", "/api/assistant", {
-        agent: activeAgent,
-        messages: history,
-      });
+        triggerHaptic("success");
 
-      triggerHaptic("success");
+        if (!ocrRes.results || ocrRes.results.length === 0) {
+          setMsgs((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "Analisei o print enviado, mas não identifiquei informações financeiras ou cobranças legíveis. Se preferir, digite o gasto por texto.",
+            },
+          ]);
+        } else {
+          const itemsSummary = ocrRes.results
+            .map((r) => {
+              const statusStr = r.duplicate ? "(já existia no sistema, ignorado)" : "(registrado)";
+              const accStr = r.accountName ? ` na conta ${r.accountName}` : "";
+              const catStr = r.categoryName ? ` [${r.categoryName}]` : "";
+              return `• ${r.description}: ${brl(r.amountCents)}${catStr}${accStr} ${statusStr}`;
+            })
+            .join("\n");
 
-      const createdList: Created[] = [];
-      if (out?.transactions && Array.isArray(out.transactions) && out.transactions.length > 0) {
-        for (const t of out.transactions) {
-          createdList.push({
-            id: String(Date.now()),
-            description: t.description,
-            amountCents: Math.round(t.amount * 100),
-            type: t.type,
-            categoryName: t.category ?? null,
-          });
+          const createdList: Created[] = ocrRes.results
+            .filter((r) => !r.duplicate)
+            .map((r) => ({
+              id: r.id || String(Date.now()),
+              description: r.description,
+              amountCents: r.amountCents,
+              type: r.type,
+              categoryName: r.categoryName,
+            }));
+
+          const replyText =
+            `**${agentConfig.name}** analisou seu print:\n\n${itemsSummary}\n\n` +
+            (textToSend
+              ? `Sobre seu comentário ("${textToSend}"): valores cruzados com suas contas bancárias e categorias.`
+              : `Todos os dados foram processados e integrados ao seu controle financeiro.`);
+
+          setMsgs((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: replyText,
+              created: createdList,
+            },
+          ]);
         }
-      }
+      } else {
+        const history = nextMsgs
+          .filter((m) => !m.error)
+          .slice(-10)
+          .map((m) => ({ role: m.role, content: m.content }));
 
-      setMsgs((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: out?.reply || "Entendido!",
-          created: createdList,
-        },
-      ]);
+        const out = await api<{
+          reply: string;
+          transactions?: { description: string; amount: number; date?: string; type: "expense" | "income"; category?: string; paid: boolean }[];
+        }>("POST", "/api/assistant", {
+          agent: activeAgent,
+          messages: history,
+        });
+
+        triggerHaptic("success");
+
+        const createdList: Created[] = [];
+        if (out?.transactions && Array.isArray(out.transactions) && out.transactions.length > 0) {
+          for (const t of out.transactions) {
+            createdList.push({
+              id: String(Date.now()),
+              description: t.description,
+              amountCents: Math.round(t.amount * 100),
+              type: t.type,
+              categoryName: t.category ?? null,
+            });
+          }
+        }
+
+        setMsgs((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: out?.reply || "Entendido!",
+            created: createdList,
+          },
+        ]);
+      }
     } catch (e) {
       triggerHaptic("error");
       setMsgs((prev) => [
@@ -311,21 +445,27 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
                     : "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100 rounded-bl-xs border border-slate-200/60 dark:border-slate-700/60",
               )}
             >
-              <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
-              {m.created && m.created.length > 0 && (
-                <div className="mt-2.5 space-y-1.5 border-t border-slate-200/60 dark:border-slate-700 pt-2 text-xs">
-                  <p className="font-semibold text-brand-700 dark:text-brand-400">Lançamento registrado com sucesso:</p>
-                  {m.created.map((c) => (
-                    <div key={c.id} className="flex justify-between gap-2 font-mono">
-                      <span>{c.description}</span>
-                      <span className="font-bold">{brl(c.amountCents)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+                {m.imagePreview && (
+                  <div className="mb-2 max-w-xs overflow-hidden rounded-xl border border-white/20 shadow-xs">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.imagePreview} alt="Print anexado" className="max-h-48 w-auto object-cover rounded-xl" />
+                  </div>
+                )}
+                <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                {m.created && m.created.length > 0 && (
+                  <div className="mt-2.5 space-y-1.5 border-t border-slate-200/60 dark:border-slate-700 pt-2 text-xs">
+                    <p className="font-semibold text-brand-700 dark:text-brand-400">Lançamento registrado com sucesso:</p>
+                    {m.created.map((c) => (
+                      <div key={c.id} className="flex justify-between gap-2 font-mono">
+                        <span>{c.description}</span>
+                        <span className="font-bold">{brl(c.amountCents)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
         {busy && (
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
             <Loader2 size={14} className="animate-spin text-brand-600" /> {agentConfig.name} está cruzando suas finanças...
@@ -345,6 +485,25 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
         </div>
       ) : (
         <div className="border-t border-slate-200 dark:border-slate-800 p-3 bg-white dark:bg-slate-900">
+          {attachedImage && (
+            <div className="mb-2 flex items-center gap-2 rounded-xl border border-brand-200 dark:border-brand-900 bg-brand-50 dark:bg-brand-950/40 p-2 text-xs text-brand-900 dark:text-brand-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={attachedImage.preview} alt="" className="size-9 rounded-lg object-cover border border-brand-300" />
+              <div className="min-w-0 flex-1 truncate">
+                <span className="font-semibold block truncate text-slate-900 dark:text-white">{attachedImage.name}</span>
+                <span className="text-[10px] text-brand-600 dark:text-brand-400">Pronto para ler com OCR & cruzar contas ao enviar</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachedImage(null)}
+                className="rounded-lg p-1 hover:bg-brand-200/50 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                title="Remover anexo"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+
           <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {agentConfig.suggestions.map((s) => (
               <button
@@ -365,11 +524,27 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
               e.preventDefault();
               void send(input);
             }}
-            className="flex gap-2"
+            className="flex items-center gap-2"
           >
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Anexar print ou comprovante (ou cole com Ctrl+V)"
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2 text-slate-500 hover:text-brand-600 dark:hover:text-brand-400 active:scale-90 transition"
+            >
+              <Paperclip size={16} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              hidden
+              onChange={handleFileSelect}
+            />
+
             <input
               className="input text-xs"
-              placeholder={`Pergunte ao ${agentConfig.name} (${agentConfig.role}) ou registre um gasto...`}
+              placeholder={`Pergunte ao ${agentConfig.name} (${agentConfig.role}), envie um print ou registre um gasto...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -383,7 +558,7 @@ export function AssistantClient({ hasKey }: { hasKey: boolean }) {
             <button
               type="submit"
               className="btn-primary active:scale-95 px-3.5"
-              disabled={busy || !input.trim()}
+              disabled={busy || (!input.trim() && !attachedImage)}
               aria-label="Enviar"
             >
               <Send size={15} />

@@ -16,6 +16,7 @@ const SCHEMA = [
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
+    avatar_url TEXT,
     gemini_key_enc TEXT,
     gemini_model TEXT NOT NULL DEFAULT 'gemini-2.5-flash',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -123,6 +124,7 @@ function create(): { client: Client; ready: Promise<void> } {
       "ALTER TABLE transactions ADD COLUMN installment_current INTEGER",
       "ALTER TABLE transactions ADD COLUMN installment_total INTEGER",
       "ALTER TABLE transactions ADD COLUMN parent_tx_id TEXT",
+      "ALTER TABLE users ADD COLUMN avatar_url TEXT",
     ];
     for (const m of migrations) {
       try {

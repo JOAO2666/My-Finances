@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
+import { AppLogo } from "./app-logo";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -29,8 +30,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   return (
     <main className="grid min-h-screen place-items-center px-4 py-10">
       <div className="w-full max-w-sm">
-        <Link href="/" className="mb-6 flex items-center justify-center gap-2 text-xl font-bold text-brand-700">
-          <span className="grid size-8 place-items-center rounded-lg bg-brand-600 text-white">M</span> Moneta
+        <Link href="/" className="mb-6 flex items-center justify-center gap-2.5 text-xl font-bold text-slate-900 dark:text-white">
+          <AppLogo size={34} /> Moneta
         </Link>
         <form onSubmit={submit} className="card space-y-4">
           <h1 className="text-lg font-semibold text-slate-900">{isReg ? "Crie sua conta" : "Entre na sua conta"}</h1>

@@ -9,10 +9,12 @@ import { triggerHaptic } from "@/lib/haptics";
 
 export function AppShell({
   name,
+  avatarUrl,
   hasGeminiKey,
   children,
 }: {
   name: string;
+  avatarUrl?: string | null;
   hasGeminiKey: boolean;
   children: React.ReactNode;
 }) {
@@ -50,7 +52,7 @@ export function AppShell({
         </button>
       )}
 
-      <AppNav name={name} collapsed={collapsed} onToggleSidebar={toggleSidebar} />
+      <AppNav name={name} avatarUrl={avatarUrl} collapsed={collapsed} onToggleSidebar={toggleSidebar} />
 
       <div
         className={clsx(

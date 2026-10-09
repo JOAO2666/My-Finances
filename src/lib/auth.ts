@@ -39,6 +39,7 @@ export type SessionUser = {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string | null;
   geminiModel: string;
   hasGeminiKey: boolean;
 };
@@ -54,14 +55,16 @@ export async function getUser(): Promise<SessionUser | null> {
       id: string;
       name: string;
       email: string;
+      avatar_url: string | null;
       gemini_model: string;
       gemini_key_enc: string | null;
-    }>("SELECT id, name, email, gemini_model, gemini_key_enc FROM users WHERE id = ?", [payload.sub]);
+    }>("SELECT id, name, email, avatar_url, gemini_model, gemini_key_enc FROM users WHERE id = ?", [payload.sub]);
     if (!u) return null;
     return {
       id: u.id,
       name: u.name,
       email: u.email,
+      avatarUrl: u.avatar_url,
       geminiModel: u.gemini_model,
       hasGeminiKey: !!u.gemini_key_enc,
     };

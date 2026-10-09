@@ -22,6 +22,7 @@ import clsx from "clsx";
 import { api } from "@/lib/client";
 import { triggerHaptic } from "@/lib/haptics";
 import { ThemeToggle } from "./theme-toggle";
+import { AppLogo } from "./app-logo";
 
 const items = [
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
@@ -39,10 +40,12 @@ const items = [
 
 export function AppNav({
   name,
+  avatarUrl,
   collapsed = false,
   onToggleSidebar,
 }: {
   name: string;
+  avatarUrl?: string | null;
   collapsed?: boolean;
   onToggleSidebar?: () => void;
 }) {
@@ -79,9 +82,7 @@ export function AppNav({
             onClick={() => handleNavClick("/dashboard")}
             className="group flex items-center gap-2.5 text-xl font-bold text-brand-700 transition active:scale-95"
           >
-            <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-tr from-brand-700 to-emerald-500 text-white shadow-md shadow-brand-500/20 group-hover:rotate-6 transition-transform">
-              M
-            </span>
+            <AppLogo size={34} />
             <span className="tracking-tight text-slate-900 dark:text-white">
               My <span className="text-brand-600">Finances</span>
             </span>
@@ -142,11 +143,32 @@ export function AppNav({
         </nav>
 
         <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-1.5">
-          <div className="flex items-center justify-between px-2">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{name}</p>
-              <p className="text-[11px] text-slate-400">Online</p>
-            </div>
+          <div className="flex items-center justify-between px-2 gap-2">
+            <Link
+              href="/configuracoes"
+              prefetch={false}
+              className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition"
+              title="Ver e alterar perfil / foto"
+            >
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt={name}
+                  className="size-8 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-xs"
+                />
+              ) : (
+                <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-500 font-bold text-white text-xs shadow-xs">
+                  {name.charAt(0).toUpperCase()}
+                </span>
+              )}
+              <div className="min-w-0 truncate">
+                <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{name}</p>
+                <p className="text-[10px] text-emerald-600 dark:text-[#a3ff12] font-medium flex items-center gap-1">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Conectado
+                </p>
+              </div>
+            </Link>
             <ThemeToggle />
           </div>
           <button
@@ -159,21 +181,29 @@ export function AppNav({
       </aside>
 
       {/* Mobile Top Header */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden shadow-xs">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-4 py-3 backdrop-blur-md lg:hidden shadow-xs">
         <Link
           href="/dashboard"
           prefetch={false}
           onClick={() => handleNavClick("/dashboard")}
-          className="flex items-center gap-2 font-bold text-slate-900 active:scale-95 transition"
+          className="flex items-center gap-2 font-bold text-slate-900 dark:text-white active:scale-95 transition"
         >
-          <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-tr from-brand-700 to-emerald-500 text-sm font-bold text-white shadow-xs">
-            M
-          </span>
+          <AppLogo size={28} />
           <span className="tracking-tight">
             My <span className="text-brand-600">Finances</span>
           </span>
         </Link>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {avatarUrl ? (
+            <Link href="/configuracoes" prefetch={false} title="Configurações">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={avatarUrl}
+                alt={name}
+                className="size-7 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
+              />
+            </Link>
+          ) : null}
           <ThemeToggle />
           <button
             onClick={logout}
